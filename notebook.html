@@ -11,6 +11,9 @@
 	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js" defer></script>
 	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/continuelist.min.js" defer></script>
 	    
+	    <!-- Vim 模式支持 -->
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/keymap/vim.min.js" defer></script>
+	    
 	    <!-- Marked.js -->
 	    <script src="https://cdn.bootcdn.net/ajax/libs/marked/4.0.2/marked.min.js"></script>
 	    
@@ -728,6 +731,37 @@
 	            background: var(--primary-color);
 	            color: #fff;
 	        }
+
+	        /* vim 模式开关样式 */
+	        .vim-toggle {
+	            position: fixed;
+	            top: 24px;
+	            right: 24px;
+	            z-index: 3001;
+	            background: var(--primary-color);
+	            color: white;
+	            border: none;
+	            border-radius: 6px;
+	            padding: 8px 16px;
+	            font-size: 14px;
+	            cursor: pointer;
+	            box-shadow: 0 2px 8px rgba(124,77,255,0.2);
+	            transition: all 0.3s ease;
+	            display: none;
+	        }
+	        
+	        .vim-toggle.active {
+	            background: var(--success-color);
+	        }
+	        
+	        .vim-toggle:hover {
+	            transform: translateY(-2px);
+	            box-shadow: 0 4px 12px rgba(124,77,255,0.3);
+	        }
+	        
+	        .fullscreen .vim-toggle {
+	            display: block;
+	        }
 	    </style>
 	    <!-- 在 head 中添加以下引用，放在其他 CodeMirror 引用之后 -->
 	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.css">
@@ -737,6 +771,7 @@
 	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js" defer></script>
 	</head>
 	<body>
+		<button class="vim-toggle" onclick="toggleVimMode()">Vim 模式: 关闭</button>
 		<div class="container">
 			<div class="toolbar">
 				<button class="btn" onclick="saveNote()" title="保存 (⌘S / Ctrl+S)">保存</button>
@@ -928,20 +963,6 @@
 			                } else {
 			                    cm.replaceSelection("    ", "end");
 			                }
-			            },
-			            // Mac 系统会自动将 Ctrl 映射为 Command
-			            "Ctrl-S": function(cm) {
-			                saveNote();
-			                return false;
-			            },
-			            "Ctrl-E": function(cm) {
-			                exportNote();
-			                return false;
-			            },
-			            // 折叠快捷键
-			            "Ctrl-Q": function(cm) {
-			                cm.foldCode(cm.getCursor());
-			                return false;
 			            }
 			        },
 			        // 添加折叠相关配置
@@ -983,6 +1004,16 @@
 			
 			    // 初始预览
 			    updatePreview();
+			    
+			    // 自动进入编辑全屏模式
+			    setTimeout(() => {
+			        const container = document.querySelector('.container');
+			        if (!container.classList.contains('fullscreen')) {
+			            toggleFullscreen();
+			            container.classList.add('hide-preview');
+			            document.getElementById('togglePreviewBtn').innerText = '显示预览';
+			        }
+			    }, 100);
 			}
 			
 			// 更新预览函数
@@ -1534,54 +1565,93 @@
 				});
 			}
 
+			// vim 模式切换
+			let isVimMode = false;
+			function toggleVimMode() {
+			    isVimMode = !isVimMode;
+			    const btn = document.querySelector('.vim-toggle');
+			    if (isVimMode) {
+			        editor.setOption('keyMap', 'vim');
+			        btn.textContent = 'Vim 模式: 开启';
+			        btn.classList.add('active');
+			    } else {
+			        editor.setOption('keyMap', 'default');
+			        btn.textContent = 'Vim 模式: 关闭';
+			        btn.classList.remove('active');
+			    }
+			}
+
+			// 修改快捷键处理
 			function setupShortcuts() {
-				document.addEventListener('keydown', function(e) {
-					// 检查是否在输入框中
-					if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-						return;
-					}
+			    document.addEventListener('keydown', function(e) {
+			        // 检查是否按下了 Cmd+Enter (Mac) 或 Ctrl+Enter (Windows)
+			        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+			            e.preventDefault();
+			            const container = document.querySelector('.container');
+			            
+			            if (!container.classList.contains('fullscreen')) {
+			                // 不在全屏状态，进入全屏+编辑模式
+			                toggleFullscreen();
+			                container.classList.add('hide-preview');
+			                document.getElementById('togglePreviewBtn').innerText = '显示预览';
+			            } else if (container.classList.contains('hide-preview')) {
+			                // 在编辑全屏，切换到预览全屏
+			                container.classList.remove('hide-preview');
+			                container.classList.add('only-preview');
+			                document.getElementById('onlyPreviewBtn').innerText = '恢复双栏';
+			                document.getElementById('togglePreviewBtn').innerText = '隐藏预览';
+			                updatePreview();
+			            } else if (container.classList.contains('only-preview')) {
+			                // 在预览全屏，退出全屏
+			                toggleFullscreen();
+			                container.classList.remove('only-preview');
+			            } else {
+			                // 在普通全屏，切换到编辑全屏
+			                container.classList.add('hide-preview');
+			                document.getElementById('togglePreviewBtn').innerText = '显示预览';
+			            }
+			            return;
+			        }
 
-					// 检查当前按键组合
-					const pressedModifiers = [];
-					if (e.altKey) pressedModifiers.push('alt');
-					if (e.shiftKey) pressedModifiers.push('shift');
-					if (e.ctrlKey) pressedModifiers.push('ctrl');
-					if (e.metaKey) pressedModifiers.push('meta');
+			        // 其他快捷键处理
+			        // 检查当前按键组合
+			        const pressedModifiers = [];
+			        if (e.altKey) pressedModifiers.push('alt');
+			        if (e.shiftKey) pressedModifiers.push('shift');
+			        if (e.ctrlKey) pressedModifiers.push('ctrl');
+			        if (e.metaKey) pressedModifiers.push('meta');
 
-					// 检查是否匹配任何快捷键
-					for (const [action, config] of Object.entries(shortcuts)) {
-						if (e.key.toLowerCase() === config.key.toLowerCase() &&
-							config.modifiers.length === pressedModifiers.length &&
-							config.modifiers.every(mod => pressedModifiers.includes(mod))) {
-							
-							e.preventDefault();
-							switch (action) {
-								case 'toggleTodoPanel':
-									toggleTodoPanel();
-									break;
-								case 'quickAddTodo':
-									quickAddTodo();
-									break;
-								case 'insertTodoList':
-									insertTodoList();
-									break;
-								case 'saveNote':
-									saveNote();
-									break;
-								case 'exportNote':
-									exportNote();
-									break;
-								case 'foldCode':
-									editor.foldCode(editor.getCursor());
-									break;
-								case 'toggleFullscreen':
-									toggleFullscreen();
-									break;
-							}
-							break;
-						}
-					}
-				});
+			        // 检查是否匹配任何快捷键
+			        for (const [action, config] of Object.entries(shortcuts)) {
+			            if (e.key.toLowerCase() === config.key.toLowerCase() &&
+			                config.modifiers.length === pressedModifiers.length &&
+			                config.modifiers.every(mod => pressedModifiers.includes(mod))) {
+			                
+			                e.preventDefault();
+			                switch (action) {
+			                    case 'toggleTodoPanel':
+			                        toggleTodoPanel();
+			                        break;
+			                    case 'quickAddTodo':
+			                        quickAddTodo();
+			                        break;
+			                    case 'insertTodoList':
+			                        insertTodoList();
+			                        break;
+			                    case 'saveNote':
+			                        saveNote();
+			                        break;
+			                    case 'exportNote':
+			                        exportNote();
+			                        break;
+			                    case 'foldCode':
+			                        editor.foldCode(editor.getCursor());
+			                        break;
+			                }
+			                break;
+			            }
+			        }
+			    });
 			}
 
 			// 更新帮助面板中的快捷键显示
