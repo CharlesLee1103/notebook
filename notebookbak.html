@@ -913,25 +913,6 @@
 			    const content = editor.getValue();
 			    const preview = document.getElementById('preview');
 			    preview.innerHTML = marked.parse(content);
-			
-			    // 为预览区域中的复选框添加点击事件
-			    preview.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-			        checkbox.addEventListener('change', function() {
-			            const lineNumber = this.closest('li')?.dataset.line;
-			            if (lineNumber) {
-			                const doc = editor.getDoc();
-			                const line = doc.getLine(parseInt(lineNumber) - 1);
-			                const newLine = line.replace(
-			                    /- \[([ x])\]/,
-			                    `- [${this.checked ? 'x' : ' '}]`
-			                );
-			                doc.replaceRange(newLine, 
-			                    {line: parseInt(lineNumber) - 1, ch: 0},
-			                    {line: parseInt(lineNumber) - 1, ch: line.length}
-			                );
-			            }
-			        });
-			    });
 			}
 			let editor;
 			let todos = JSON.parse(localStorage.getItem('todos') || '[]');
@@ -1230,75 +1211,6 @@
 				setupShortcuts();
 			};
 
-			// 在原有的 marked 配置中添加 Task List 支持
-			marked.setOptions({
-				breaks: true,
-				gfm: true,
-				tasks: true,
-				highlight: function(code, lang) {
-					if (lang && hljs.getLanguage(lang)) {
-						return hljs.highlight(code, {
-							language: lang
-						}).value;
-					}
-					return hljs.highlightAuto(code).value;
-				}
-			});
-
-			// 保存笔记内容
-			function saveNote() {
-				try {
-					const content = editor.getValue();
-					localStorage.setItem('noteContent', content);
-					lastSaveTime = Date.now(); // 更新最后保存时间
-					showMessage('保存成功！');
-				} catch (error) {
-					console.error('保存失败：', error);
-					showMessage('保存失败，请重试', 'error');
-				}
-			}
-
-			// 显示提示消息
-			function showMessage(text, type = 'success') {
-				// 创建消息元素
-				const message = document.createElement('div');
-				message.className = `message message-${type}`;
-				message.textContent = text;
-				message.style.cssText = `
-					position: fixed;
-					top: 20px;
-					left: 50%;
-					transform: translateX(-50%);
-					padding: 10px 20px;
-					border-radius: 4px;
-					background-color: ${type === 'success' ? '#4CAF50' : '#f44336'};
-					color: white;
-					z-index: 1000;
-					animation: fadeInOut 2s ease-in-out;
-				`;
-
-				// 添加动画样式
-				const style = document.createElement('style');
-				style.textContent = `
-					@keyframes fadeInOut {
-						0% { opacity: 0; transform: translate(-50%, -20px); }
-						15% { opacity: 1; transform: translate(-50%, 0); }
-						85% { opacity: 1; transform: translate(-50%, 0); }
-						100% { opacity: 0; transform: translate(-50%, -20px); }
-					}
-				`;
-				document.head.appendChild(style);
-
-				// 添加到页面
-				document.body.appendChild(message);
-
-				// 2秒后移除消息
-				setTimeout(() => {
-					message.remove();
-					style.remove();
-				}, 2000);
-			}
-
 			// 自动保存功能
 			function setupAutoSave() {
 				editor.on('change', function() {
@@ -1592,23 +1504,59 @@
 				}
 			});
 
-			// 配置marked选项，确保正确渲染引用
-			marked.setOptions({
-				breaks: true,
-				gfm: true,
-				tasks: true,
-				highlight: function(code, lang) {
-					if (lang && hljs.getLanguage(lang)) {
-						return hljs.highlight(code, {
-							language: lang
-						}).value;
+			// 保存笔记内容
+			function saveNote() {
+				try {
+					const content = editor.getValue();
+					localStorage.setItem('noteContent', content);
+					lastSaveTime = Date.now(); // 更新最后保存时间
+					showMessage('保存成功！');
+				} catch (error) {
+					console.error('保存失败：', error);
+					showMessage('保存失败，请重试', 'error');
+				}
+			}
+
+			// 显示提示消息
+			function showMessage(text, type = 'success') {
+				// 创建消息元素
+				const message = document.createElement('div');
+				message.className = `message message-${type}`;
+				message.textContent = text;
+				message.style.cssText = `
+					position: fixed;
+					top: 20px;
+					left: 50%;
+					transform: translateX(-50%);
+					padding: 10px 20px;
+					border-radius: 4px;
+					background-color: ${type === 'success' ? '#4CAF50' : '#f44336'};
+					color: white;
+					z-index: 1000;
+					animation: fadeInOut 2s ease-in-out;
+				`;
+
+				// 添加动画样式
+				const style = document.createElement('style');
+				style.textContent = `
+					@keyframes fadeInOut {
+						0% { opacity: 0; transform: translate(-50%, -20px); }
+						15% { opacity: 1; transform: translate(-50%, 0); }
+						85% { opacity: 1; transform: translate(-50%, 0); }
+						100% { opacity: 0; transform: translate(-50%, -20px); }
 					}
-					return hljs.highlightAuto(code).value;
-				},
-				// 添加引用的渲染配置
-				smartLists: true,
-				smartypants: true
-			});
+				`;
+				document.head.appendChild(style);
+
+				// 添加到页面
+				document.body.appendChild(message);
+
+				// 2秒后移除消息
+				setTimeout(() => {
+					message.remove();
+					style.remove();
+				}, 2000);
+			}
 		</script>
 	</body>
 </html>
