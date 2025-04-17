@@ -246,7 +246,7 @@
 	        }
 
 	        .todo-item:hover .delete-btn {
-	            opacity: 1;
+	            background: rgba(255, 82, 82, 0.1);
 	        }
 
 	        .todo-item .delete-btn:hover {
@@ -736,8 +736,8 @@
 	        .vim-toggle {
 	            position: fixed;
 	            top: 24px;
-	            right: 24px;
-	            z-index: 3001;
+	            right: 120px;
+	            z-index: 9999;
 	            background: var(--primary-color);
 	            color: white;
 	            border: none;
@@ -759,8 +759,12 @@
 	            box-shadow: 0 4px 12px rgba(124,77,255,0.3);
 	        }
 	        
-	        .fullscreen .vim-toggle {
+	        .fullscreen.hide-preview .vim-toggle {
 	            display: block;
+	        }
+
+	        .fullscreen.only-preview .vim-toggle {
+	            display: none;
 	        }
 	    </style>
 	    <!-- 在 head 中添加以下引用，放在其他 CodeMirror 引用之后 -->
@@ -986,7 +990,9 @@
 			        matchBrackets: true,
 			        showCursorWhenSelecting: true,
 			        viewportMargin: Infinity,
-			        dragDrop: true
+			        dragDrop: true,
+			        // 默认使用普通模式
+			        keyMap: 'default'
 			    });
 			
 			    // 加载保存的内容
@@ -1012,8 +1018,16 @@
 			            toggleFullscreen();
 			            container.classList.add('hide-preview');
 			            document.getElementById('togglePreviewBtn').innerText = '显示预览';
+			            // 确保 vim 开关按钮可见
+			            document.querySelector('.vim-toggle').style.display = 'block';
 			        }
 			    }, 100);
+
+			    // 恢复 vim 模式状态
+			    const savedVimMode = localStorage.getItem('vimMode') === 'true';
+			    if (savedVimMode) {
+			        toggleVimMode();
+			    }
 			}
 			
 			// 更新预览函数
@@ -1357,20 +1371,28 @@
 
 			// 全屏切换函数
 			function toggleFullscreen() {
-				const container = document.querySelector('.container');
-				const editorContainer = document.querySelector('.editor-container');
-				if (!container || !editorContainer) return;
-				container.classList.toggle('fullscreen');
-				editorContainer.classList.toggle('fullscreen');
-				document.body.classList.toggle('fullscreen-mode');
-				if (container.classList.contains('fullscreen')) {
-					showFullscreenToolbar();
-					document.addEventListener('keydown', fullscreenKeyHandler);
-				} else {
-					removeFullscreenToolbar();
-					container.classList.remove('hide-preview', 'only-preview');
-					document.removeEventListener('keydown', fullscreenKeyHandler);
-				}
+			    const container = document.querySelector('.container');
+			    const editorContainer = document.querySelector('.editor-container');
+			    if (!container || !editorContainer) return;
+			    
+			    container.classList.toggle('fullscreen');
+			    editorContainer.classList.toggle('fullscreen');
+			    document.body.classList.toggle('fullscreen-mode');
+			    
+			    if (container.classList.contains('fullscreen')) {
+			        showFullscreenToolbar();
+			        document.addEventListener('keydown', fullscreenKeyHandler);
+			        // 在编辑全屏模式下显示 vim 开关
+			        if (container.classList.contains('hide-preview')) {
+			            document.querySelector('.vim-toggle').style.display = 'block';
+			        }
+			    } else {
+			        removeFullscreenToolbar();
+			        container.classList.remove('hide-preview', 'only-preview');
+			        document.removeEventListener('keydown', fullscreenKeyHandler);
+			        // 非全屏模式隐藏 vim 开关
+			        document.querySelector('.vim-toggle').style.display = 'none';
+			    }
 			}
 
 			// 显示全屏悬浮按钮区
@@ -1579,6 +1601,8 @@
 			        btn.textContent = 'Vim 模式: 关闭';
 			        btn.classList.remove('active');
 			    }
+			    // 保存 vim 模式状态
+			    localStorage.setItem('vimMode', isVimMode);
 			}
 
 			// 修改快捷键处理
