@@ -1496,6 +1496,12 @@
 			function fullscreenKeyHandler(e) {
 				const container = document.querySelector('.container');
 				if (!container || !container.classList.contains('fullscreen')) return;
+				
+				// 如果是 vim 模式，不处理 ESC 键
+				if (e.key === 'Escape' && isVimMode) {
+					return;
+				}
+				
 				// 仅编辑区全屏时按ESC切换为预览全屏
 				if (e.key === 'Escape' && container.classList.contains('hide-preview')) {
 					container.classList.remove('hide-preview');
@@ -1526,6 +1532,10 @@
 			function setupEditorEscToPreview() {
 				editor.on('keydown', function(cm, e) {
 					if (e.key === 'Escape') {
+						// 如果是 vim 模式，不处理 ESC 键
+						if (isVimMode) {
+							return;
+						}
 						const container = document.querySelector('.container');
 						// 记录光标位置
 						lastEditorCursor = editor.getCursor();
