@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+	    <meta charset="UTF-8">
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	    <title>在线记事本 - 支持待办</title>
+	    <!-- CodeMirror -->
+	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/continuelist.min.js"></script>
+	    
+	    <!-- Marked.js -->
+	    <script src="https://cdn.bootcdn.net/ajax/libs/marked/4.0.2/marked.min.js"></script>
+	    
+	    <!-- Highlight.js -->
+	    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+	    <script src="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+	    
+	    <!-- 备选 CDN -->
+	    <script>
+	        // 检查 highlight.js 是否加载成功
+	        if (typeof hljs === 'undefined') {
+	            // 如果加载失败，尝试从其他 CDN 加载
+	            const script = document.createElement('script');
+	            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js';
+	            document.head.appendChild(script);
+	            
+	            const link = document.createElement('link');
+	            link.rel = 'stylesheet';
+	            link.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css';
+	            document.head.appendChild(link);
+	        }
+	    </script>
+	    <style>
+	        :root {
+	            --primary-color: #7C4DFF;
+	            --primary-light: #B388FF;
+	            --primary-dark: #5E35B1;
+	            --success-color: #4CAF50;
+	            --danger-color: #FF5252;
+	            --background-color: #F5F7FA;
+	            --surface-color: #FFFFFF;
+	            --text-primary: #2C3E50;
+	            --text-secondary: #606F7B;
+	            --border-color: #E2E8F0;
+	        }
+
+	        * {
+	            margin: 0;
+	            padding: 0;
+	            box-sizing: border-box;
+	        }
+
+	        body {
+	            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	            line-height: 1.6;
+	            color: var(--text-primary);
+	            background: var(--background-color);
+	        }
+
+	        .container {
+	            max-width: 1400px;
+	            margin: 20px auto;
+	            padding: 0 20px;
+	        }
+
+	        .toolbar {
+	            background: var(--surface-color);
+	            padding: 16px;
+	            border-radius: 12px;
+	            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+	            margin-bottom: 20px;
+	            display: flex;
+	            gap: 12px;
+	            flex-wrap: wrap;
+	            align-items: center;
+	        }
+
+	        .btn {
+	            padding: 8px 16px;
+	            border: none;
+	            border-radius: 8px;
+	            cursor: pointer;
+	            font-size: 14px;
+	            font-weight: 500;
+	            transition: all 0.3s ease;
+	            display: flex;
+	            align-items: center;
+	            gap: 8px;
+	            background: var(--primary-color);
+	            color: white;
+	        }
+
+	        .btn:hover {
+	            background: var(--primary-dark);
+	            transform: translateY(-1px);
+	            box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);
+	        }
+
+	        .btn:active {
+	            transform: translateY(0);
+	        }
+
+	        .editor-container {
+	            display: grid;
+	            grid-template-columns: 1fr 1fr;
+	            gap: 20px;
+	            height: calc(100vh - 140px);
+	        }
+
+	        .editor-section, .preview-section {
+	            background: var(--surface-color);
+	            border-radius: 12px;
+	            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+	            overflow: hidden;
+	        }
+
+	        /* CodeMirror 自定义样式 */
+	        .CodeMirror {
+	            height: 100% !important;
+	            font-family: "JetBrains Mono", monospace;
+	            font-size: 15px;
+	            line-height: 1.6;
+	            padding: 20px;
+	        }
+
+	        .cm-header {
+	            color: var(--primary-color) !important;
+	            font-weight: 600;
+	        }
+
+	        /* 预览区域样式 */
+	        .preview-content {
+	            padding: 20px;
+	            height: 100%;
+	            overflow-y: auto;
+	            font-size: 15px;
+	        }
+
+	        .preview-content h1,
+	        .preview-content h2,
+	        .preview-content h3 {
+	            color: var(--primary-color);
+	            margin-top: 1.5em;
+	            margin-bottom: 0.8em;
+	        }
+
+	        .preview-content p {
+	            margin-bottom: 1em;
+	            line-height: 1.8;
+	        }
+
+	        /* 待办事项面板 */
+	        .todo-panel {
+	            position: fixed;
+	            right: 24px;
+	            top: 24px;
+	            width: 360px;
+	            background: var(--surface-color);
+	            border-radius: 12px;
+	            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+	            padding: 20px;
+	            z-index: 1000;
+	            display: none;
+	        }
+
+	        .todo-header {
+	            display: flex;
+	            justify-content: space-between;
+	            align-items: center;
+	            margin-bottom: 20px;
+	        }
+
+	        .todo-header h3 {
+	            color: var(--primary-color);
+	            font-size: 18px;
+	        }
+
+	        .todo-input-container {
+	            display: flex;
+	            gap: 12px;
+	            margin-bottom: 20px;
+	        }
+
+	        .todo-input {
+	            flex: 1;
+	            padding: 10px 16px;
+	            border: 2px solid var(--border-color);
+	            border-radius: 8px;
+	            font-size: 14px;
+	            transition: all 0.3s ease;
+	        }
+
+	        .todo-input:focus {
+	            border-color: var(--primary-light);
+	            outline: none;
+	            box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.1);
+	        }
+
+	        .todo-list {
+	            max-height: 400px;
+	            overflow-y: auto;
+	        }
+
+	        .todo-item {
+	            display: flex;
+	            align-items: center;
+	            padding: 12px;
+	            border-radius: 8px;
+	            margin-bottom: 8px;
+	            background: #F8FAFC;
+	            transition: all 0.3s ease;
+	            cursor: move;
+	            user-select: none;
+	        }
+
+	        .todo-item:hover {
+	            background: #F1F5F9;
+	        }
+
+	        .todo-item input[type="checkbox"] {
+	            width: 18px;
+	            height: 18px;
+	            margin-right: 12px;
+	            accent-color: var(--primary-color);
+	        }
+
+	        .todo-item.completed span {
+	            text-decoration: line-through;
+	            color: var(--text-secondary);
+	        }
+
+	        .todo-item .delete-btn {
+	            margin-left: auto;
+	            color: var(--danger-color);
+	            cursor: pointer;
+	            opacity: 0;
+	            transition: opacity 0.2s;
+	            padding: 4px 8px;
+	            border-radius: 4px;
+	        }
+
+	        .todo-item:hover .delete-btn {
+	            opacity: 1;
+	        }
+
+	        .todo-item .delete-btn:hover {
+	            background: rgba(255, 82, 82, 0.1);
+	        }
+
+	        .todo-item.dragging {
+	            opacity: 0.5;
+	            background: #E2E8F0;
+	            transform: scale(0.98);
+	            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+	        }
+
+	        .todo-item.drag-over {
+	            border-top: 2px solid var(--primary-color);
+	            margin-top: 10px;
+	        }
+
+	        /* 上传按钮样式 */
+	        .upload-label {
+	            display: inline-flex;
+	            align-items: center;
+	            gap: 8px;
+	            padding: 8px 16px;
+	            background: var(--primary-light);
+	            color: white;
+	            border-radius: 8px;
+	            cursor: pointer;
+	            transition: all 0.3s ease;
+	        }
+
+	        .upload-label:hover {
+	            background: var(--primary-color);
+	            transform: translateY(-1px);
+	            box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);
+	        }
+
+	        .file-upload {
+	            display: none;
+	        }
+
+	        /* 自动保存提示样式 */
+	        #autoSaveIndicator {
+	            background: rgba(44, 62, 80, 0.9) !important;
+	            backdrop-filter: blur(8px);
+	            border-radius: 8px;
+	            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+	        }
+
+	        /* 消息提示样式 */
+	        .message {
+	            background: var(--primary-color) !important;
+	            backdrop-filter: blur(8px);
+	            box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);
+	            border-radius: 8px;
+	            font-weight: 500;
+	        }
+
+	        .message-error {
+	            background: var(--danger-color) !important;
+	            box-shadow: 0 4px 12px rgba(255, 82, 82, 0.2);
+	        }
+
+	        /* 滚动条美化 */
+	        ::-webkit-scrollbar {
+	            width: 8px;
+	            height: 8px;
+	        }
+
+	        ::-webkit-scrollbar-track {
+	            background: transparent;
+	        }
+
+	        ::-webkit-scrollbar-thumb {
+	            background: #CBD5E0;
+	            border-radius: 4px;
+	        }
+
+	        ::-webkit-scrollbar-thumb:hover {
+	            background: #A0AEC0;
+	        }
+
+	        /* 在 style 标签中添加以下样式 */
+	        .CodeMirror-foldgutter {
+	            width: 1.5em;
+	        }
+
+	        .CodeMirror-foldgutter-open,
+	        .CodeMirror-foldgutter-folded {
+	            color: var(--text-secondary);
+	            cursor: pointer;
+	        }
+
+	        .CodeMirror-foldgutter-open:hover,
+	        .CodeMirror-foldgutter-folded:hover {
+	            color: var(--primary-color);
+	        }
+
+	        .CodeMirror-foldgutter-open::after {
+	            content: "▾";
+	        }
+
+	        .CodeMirror-foldgutter-folded::after {
+	            content: "▸";
+	        }
+
+	        /* 折叠区域的样式 */
+	        .CodeMirror-gutters {
+	            border-right: 1px solid var(--border-color);
+	            background: transparent;
+	        }
+
+	        .CodeMirror-foldmarker {
+	            color: var(--primary-color);
+	            text-shadow: none;
+	            font-family: inherit;
+	            line-height: .3;
+	            cursor: pointer;
+	            padding: 0 4px;
+	            background: rgba(124, 77, 255, 0.1);
+	            border-radius: 4px;
+	            margin: 0 4px;
+	        }
+
+	        .CodeMirror-foldmarker:hover {
+	            background: rgba(124, 77, 255, 0.2);
+	        }
+
+	        /* 在 style 标签中添加 */
+	        [title] {
+	            position: relative;
+	        }
+
+	        [title]:hover::after {
+	            content: attr(title);
+	            position: absolute;
+	            bottom: 100%;
+	            left: 50%;
+	            transform: translateX(-50%);
+	            padding: 4px 8px;
+	            background: rgba(0, 0, 0, 0.8);
+	            color: white;
+	            font-size: 12px;
+	            white-space: nowrap;
+	            border-radius: 4px;
+	            margin-bottom: 8px;
+	            z-index: 1000;
+	        }
+
+	        [title]:hover::before {
+	            content: '';
+	            position: absolute;
+	            bottom: 100%;
+	            left: 50%;
+	            transform: translateX(-50%);
+	            border: 6px solid transparent;
+	            border-top-color: rgba(0, 0, 0, 0.8);
+	            margin-bottom: -4px;
+	        }
+
+	        /* 待办面板动画 */
+	        .todo-panel {
+	            transform-origin: top right;
+	            transition: all 0.3s ease;
+	            opacity: 0;
+	            transform: scale(0.95);
+	            display: none;
+	        }
+
+	        .todo-panel.show {
+	            opacity: 1;
+	            transform: scale(1);
+	            display: block;
+	        }
+
+	        /* 帮助按钮样式 */
+	        .help-btn {
+	            width: 40px;
+	            height: 40px;
+	            border-radius: 50%;
+	            background: var(--primary-color);
+	            color: white;
+	            border: none;
+	            cursor: pointer;
+	            font-size: 20px;
+	            display: flex;
+	            align-items: center;
+	            justify-content: center;
+	            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+	            transition: all 0.3s ease;
+	            position: fixed;
+	            right: 20px;
+	            bottom: 20px;
+	            z-index: 999;
+	        }
+
+	        .help-btn:hover {
+	            transform: translateY(-2px);
+	            box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
+	            background: var(--primary-dark);
+	        }
+
+	        .help-btn:active {
+	            transform: translateY(0);
+	        }
+
+	        /* 帮助面板样式 */
+	        .help-panel {
+	            position: fixed;
+	            right: 24px;
+	            bottom: 70px;
+	            width: 400px;
+	            background: var(--surface-color);
+	            border-radius: 12px;
+	            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+	            padding: 20px;
+	            z-index: 1000;
+	            display: none;
+	            transform-origin: bottom right;
+	            transition: all 0.3s ease;
+	            opacity: 0;
+	            transform: scale(0.95);
+	        }
+
+	        .help-panel.show {
+	            opacity: 1;
+	            transform: scale(1);
+	        }
+
+	        .help-header {
+	            display: flex;
+	            justify-content: space-between;
+	            align-items: center;
+	            margin-bottom: 20px;
+	        }
+
+	        .help-header h3 {
+	            color: var(--primary-color);
+	            font-size: 18px;
+	        }
+
+	        .help-content {
+	            max-height: 70vh;
+	            overflow-y: auto;
+	        }
+
+	        .help-content section {
+	            margin-bottom: 24px;
+	        }
+
+	        .help-content h4 {
+	            color: var(--text-primary);
+	            margin-bottom: 12px;
+	            font-size: 16px;
+	        }
+
+	        /* 快捷键表格样式 */
+	        .shortcut-table {
+	            width: 100%;
+	            border-collapse: collapse;
+	            margin-bottom: 16px;
+	        }
+
+	        .shortcut-table td {
+	            padding: 8px;
+	            border-bottom: 1px solid var(--border-color);
+	        }
+
+	        .shortcut-table td:first-child {
+	            font-family: "JetBrains Mono", monospace;
+	            color: var(--primary-color);
+	            width: 40%;
+	        }
+
+	        /* Markdown 帮助样式 */
+	        .markdown-help {
+	            background: #f8fafc;
+	            padding: 12px;
+	            border-radius: 8px;
+	            font-family: "JetBrains Mono", monospace;
+	            font-size: 14px;
+	        }
+
+	        .markdown-help p {
+	            margin: 8px 0;
+	            color: var(--text-secondary);
+	        }
+
+	        /* 功能列表样式 */
+	        .feature-list {
+	            list-style: none;
+	            padding: 0;
+	        }
+
+	        .feature-list li {
+	            padding: 8px 0;
+	            position: relative;
+	            padding-left: 24px;
+	        }
+
+	        .feature-list li::before {
+	            content: "•";
+	            color: var(--primary-color);
+	            position: absolute;
+	            left: 8px;
+	            font-weight: bold;
+	        }
+
+	        .settings-panel {
+	            position: fixed;
+	            top: 50%;
+	            left: 50%;
+	            transform: translate(-50%, -50%);
+	            background: white;
+	            padding: 20px;
+	            border-radius: 8px;
+	            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+	            z-index: 1000;
+	            min-width: 500px;
+	        }
+
+	        .settings-header {
+	            display: flex;
+	            justify-content: space-between;
+	            align-items: center;
+	            margin-bottom: 20px;
+	        }
+
+	        .close-btn {
+	            background: none;
+	            border: none;
+	            font-size: 24px;
+	            cursor: pointer;
+	        }
+
+	        .settings-content table {
+	            width: 100%;
+	            border-collapse: collapse;
+	            margin-bottom: 20px;
+	        }
+
+	        .settings-content th,
+	        .settings-content td {
+	            padding: 10px;
+	            border: 1px solid #ddd;
+	            text-align: left;
+	        }
+
+	        .settings-buttons {
+	            display: flex;
+	            justify-content: flex-end;
+	            gap: 10px;
+	        }
+
+	        .shortcut-input {
+	            width: 150px;
+	            padding: 5px;
+	        }
+
+	        /* 在style标签中添加以下样式 */
+	        .settings-button {
+	            width: 40px;
+	            height: 40px;
+	            border-radius: 50%;
+	            background: var(--primary-color);
+	            color: white;
+	            border: none;
+	            cursor: pointer;
+	            font-size: 18px;
+	            display: flex;
+	            align-items: center;
+	            justify-content: center;
+	            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+	            transition: all 0.3s ease;
+	            position: fixed;
+	            right: 20px;
+	            bottom: 70px;
+	            z-index: 999;
+	        }
+
+	        .settings-button:hover {
+	            transform: translateY(-2px) rotate(30deg);
+	            box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
+	            background: var(--primary-dark);
+	        }
+
+	        .settings-button:active {
+	            transform: translateY(0) rotate(30deg);
+	        }
+
+	        /* 在style标签中添加引用样式 */
+	        .preview-content blockquote {
+	            margin: 1em 0;
+	            padding: 0.5em 1em;
+	            border-left: 4px solid var(--primary-color);
+	            background: rgba(124, 77, 255, 0.05);
+	            color: var(--text-secondary);
+	            border-radius: 0 4px 4px 0;
+	        }
+
+	        .preview-content blockquote p {
+	            margin: 0;
+	        }
+
+	        .preview-content blockquote blockquote {
+	            margin-left: 1em;
+	            border-left-color: var(--primary-light);
+	        }
+	    </style>
+	    <!-- 在 head 中添加以下引用，放在其他 CodeMirror 引用之后 -->
+	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.css">
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldcode.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/markdown-fold.min.js"></script>
+	    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js"></script>
+	</head>
+	<body>
+		<div class="container">
+			<div class="toolbar">
+				<button class="btn" onclick="saveNote()" title="保存 (⌘S / Ctrl+S)">保存</button>
+				<button class="btn" onclick="exportNote()" title="导出 (⌘E / Ctrl+E)">导出</button>
+				<button class="btn" onclick="insertTodoList()" title="插入待办列表 (⌘L / Alt+L)">插入待办列表</button>
+				<button class="btn" onclick="toggleTodoPanel()" id="todoBtn" title="显示/隐藏待办面板 (⌘T / Alt+T)">
+					待办事项
+					<span class="badge" id="todoBadge" style="display: none">0</span>
+				</button>
+				<label class="upload-label">
+					上传图片
+					<input type="file" class="file-upload" accept="image/*" onchange="handleImageUpload(event)">
+				</label>
+				<label class="upload-label" style="background: #9C27B0;">
+					上传文件
+					<input type="file" class="file-upload" onchange="handleFileUpload(event)">
+				</label>
+				<!-- 帮助按钮 -->
+				<button class="help-btn" onclick="toggleHelpPanel()" title="查看帮助">
+					<span>?</span>
+				</button>
+			</div>
+			<div class="editor-container">
+				<div class="editor-section">
+					<textarea id="editor"></textarea>
+				</div>
+				<div class="preview-section">
+					<div id="preview" class="preview-content"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 待办事项面板 -->
+		<div class="todo-panel" id="todoPanel">
+			<div class="todo-header">
+				<h3>待办事项</h3>
+				<button class="btn" onclick="toggleTodoPanel()">关闭</button>
+			</div>
+			<div class="todo-input-container">
+				<input type="text" class="todo-input" id="todoInput" placeholder="输入待办事项...">
+				<button class="btn" onclick="addTodo()">添加</button>
+			</div>
+			<div class="todo-list" id="todoList"></div>
+		</div>
+
+		<!-- 帮助面板 -->
+		<div class="help-panel" id="helpPanel">
+			<div class="help-header">
+				<h3>使用帮助</h3>
+				<button class="btn" onclick="toggleHelpPanel()">关闭</button>
+			</div>
+			<div class="help-content">
+				<section>
+					<h4>快捷键</h4>
+					<table class="shortcut-table">
+						<tr>
+							<td>⌘S / Ctrl+S</td>
+							<td>保存笔记</td>
+						</tr>
+						<tr>
+							<td>⌘E / Ctrl+E</td>
+							<td>导出笔记</td>
+						</tr>
+						<tr>
+							<td>⌘T / Alt+T</td>
+							<td>显示/隐藏待办面板</td>
+						</tr>
+						<tr>
+							<td>⌘N / Alt+N</td>
+							<td>快速添加待办</td>
+						</tr>
+						<tr>
+							<td>⌘L / Alt+L</td>
+							<td>插入待办列表</td>
+						</tr>
+						<tr>
+							<td>⌘Q / Ctrl+Q</td>
+							<td>折叠/展开代码块</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h4>Markdown 语法</h4>
+					<div class="markdown-help">
+						<p># 标题1</p>
+						<p>## 标题2</p>
+						<p>**粗体**</p>
+						<p>*斜体*</p>
+						<p>`代码`</p>
+						<p>- [ ] 待办项</p>
+						<p>- [x] 已完成项</p>
+						<p>[链接](URL)</p>
+						<p>![图片](URL)</p>
+					</div>
+				</section>
+				<section>
+					<h4>功能说明</h4>
+					<ul class="feature-list">
+						<li>支持实时预览 Markdown 格式</li>
+						<li>支持代码高亮显示</li>
+						<li>支持图片和文件上传</li>
+						<li>支持待办事项管理</li>
+						<li>支持自动保存</li>
+						<li>支持导出为 Markdown 文件</li>
+					</ul>
+				</section>
+			</div>
+		</div>
+
+		<!-- 快捷键设置面板 -->
+		<div id="shortcutSettingsPanel" class="settings-panel" style="display: none;">
+			<div class="settings-header">
+				<h2>快捷键设置</h2>
+				<button onclick="closeShortcutSettings()" class="close-btn">×</button>
+			</div>
+			<div class="settings-content">
+				<table id="shortcutSettingsTable">
+					<thead>
+						<tr>
+							<th>功能</th>
+							<th>快捷键</th>
+							<th>操作</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+				<div class="settings-buttons">
+					<button onclick="resetShortcuts()">恢复默认</button>
+					<button onclick="saveShortcutSettings()">保存</button>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// 快捷键配置
+			const defaultShortcuts = {
+				toggleTodoPanel: { key: 't', modifiers: ['alt', 'shift'], description: '显示/隐藏待办面板' },
+				quickAddTodo: { key: 'n', modifiers: ['alt', 'shift'], description: '快速添加待办' },
+				insertTodoList: { key: 'l', modifiers: ['alt', 'shift'], description: '插入待办列表' },
+				saveNote: { key: 's', modifiers: ['ctrl'], description: '保存笔记' },
+				exportNote: { key: 'e', modifiers: ['ctrl'], description: '导出笔记' },
+				foldCode: { key: 'q', modifiers: ['ctrl'], description: '折叠/展开代码块' }
+			};
+
+			// 从本地存储加载自定义快捷键，确保始终有有效的快捷键配置
+			let shortcuts = {};
+			try {
+				const savedShortcuts = localStorage.getItem('shortcuts');
+				shortcuts = savedShortcuts ? JSON.parse(savedShortcuts) : { ...defaultShortcuts };
+				// 确保所有默认快捷键都存在
+				for (const [key, value] of Object.entries(defaultShortcuts)) {
+					if (!shortcuts[key]) {
+						shortcuts[key] = { ...value };
+					}
+					// 确保每个快捷键都有必要的属性
+					shortcuts[key].description = shortcuts[key].description || value.description;
+					shortcuts[key].modifiers = shortcuts[key].modifiers || [...value.modifiers];
+					shortcuts[key].key = shortcuts[key].key || value.key;
+				}
+			} catch (error) {
+				console.error('加载快捷键配置失败:', error);
+				shortcuts = { ...defaultShortcuts };
+			}
+
+			// 保存快捷键配置
+			function saveShortcuts() {
+				try {
+					localStorage.setItem('shortcuts', JSON.stringify(shortcuts));
+					console.log('快捷键配置保存成功');
+				} catch (error) {
+					console.error('保存快捷键配置失败:', error);
+					showMessage('保存快捷键配置失败，请重试', 'error');
+				}
+			}
+
+			// 初始化编辑器
+			function initEditor() {
+			    editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+			        mode: 'markdown',
+			        theme: 'monokai',
+			        lineNumbers: true,
+			        lineWrapping: true,
+			        extraKeys: {
+			            "Enter": "newlineAndIndentContinueMarkdownList",
+			            "Tab": function(cm) {
+			                if (cm.somethingSelected()) {
+			                    cm.indentSelection("add");
+			                } else {
+			                    cm.replaceSelection("    ", "end");
+			                }
+			            },
+			            // Mac 系统会自动将 Ctrl 映射为 Command
+			            "Ctrl-S": function(cm) {
+			                saveNote();
+			                return false;
+			            },
+			            "Ctrl-E": function(cm) {
+			                exportNote();
+			                return false;
+			            },
+			            // 折叠快捷键
+			            "Ctrl-Q": function(cm) {
+			                cm.foldCode(cm.getCursor());
+			                return false;
+			            }
+			        },
+			        // 添加折叠相关配置
+			        foldGutter: true,
+			        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+			        foldOptions: {
+			            widget: (from, to) => {
+			                let count = undefined;
+			                // 找到折叠的行数
+			                count = to.line - from.line;
+			                let text = '...';
+			                if (count) {
+			                    text += count + ' 行';
+			                }
+			                return text;
+			            }
+			        },
+			        indentUnit: 4,
+			        tabSize: 4,
+			        autoCloseBrackets: true,
+			        matchBrackets: true,
+			        showCursorWhenSelecting: true,
+			        viewportMargin: Infinity,
+			        dragDrop: true
+			    });
+			
+			    // 加载保存的内容
+			    const savedContent = localStorage.getItem('noteContent');
+			    if (savedContent) {
+			        editor.setValue(savedContent);
+			    }
+			
+			    // 实时预览
+			    editor.on('change', function() {
+			        updatePreview();
+			        // 触发自动保存
+			        triggerAutoSave();
+			    });
+			
+			    // 初始预览
+			    updatePreview();
+			}
+			
+			// 更新预览函数
+			function updatePreview() {
+			    const content = editor.getValue();
+			    const preview = document.getElementById('preview');
+			    preview.innerHTML = marked.parse(content);
+			
+			    // 为预览区域中的复选框添加点击事件
+			    preview.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+			        checkbox.addEventListener('change', function() {
+			            const lineNumber = this.closest('li')?.dataset.line;
+			            if (lineNumber) {
+			                const doc = editor.getDoc();
+			                const line = doc.getLine(parseInt(lineNumber) - 1);
+			                const newLine = line.replace(
+			                    /- \[([ x])\]/,
+			                    `- [${this.checked ? 'x' : ' '}]`
+			                );
+			                doc.replaceRange(newLine, 
+			                    {line: parseInt(lineNumber) - 1, ch: 0},
+			                    {line: parseInt(lineNumber) - 1, ch: line.length}
+			                );
+			            }
+			        });
+			    });
+			}
+			let editor;
+			let todos = JSON.parse(localStorage.getItem('todos') || '[]');
+
+			// 自动保存相关变量和函数
+			let autoSaveTimeout = null;
+			let lastSaveTime = Date.now();
+			const AUTO_SAVE_DELAY = 3000; // 3秒后自动保存
+
+			function triggerAutoSave() {
+			    // 清除之前的定时器
+			    if (autoSaveTimeout) {
+			        clearTimeout(autoSaveTimeout);
+			    }
+
+			    // 设置新的定时器
+			    autoSaveTimeout = setTimeout(() => {
+			        const currentTime = Date.now();
+			        // 确保距离上次保存至少间隔3秒
+			        if (currentTime - lastSaveTime >= AUTO_SAVE_DELAY) {
+			            const content = editor.getValue();
+			            try {
+			                localStorage.setItem('noteContent', content);
+			                lastSaveTime = currentTime;
+			                showAutoSaveIndicator();
+			                console.log('自动保存成功：', new Date().toLocaleTimeString());
+			            } catch (error) {
+			                console.error('自动保存失败：', error);
+			            }
+			        }
+			    }, AUTO_SAVE_DELAY);
+			}
+
+			// 添加自动保存指示器
+			function showAutoSaveIndicator() {
+			    // 如果已经存在指示器，先移除
+			    const existingIndicator = document.getElementById('autoSaveIndicator');
+			    if (existingIndicator) {
+			        existingIndicator.remove();
+			    }
+
+			    // 创建新的指示器
+			    const indicator = document.createElement('div');
+			    indicator.id = 'autoSaveIndicator';
+			    indicator.textContent = '已自动保存';
+			    indicator.style.cssText = `
+			        position: fixed;
+			        bottom: 20px;
+			        right: 20px;
+			        background: rgba(0, 0, 0, 0.7);
+			        color: white;
+			        padding: 8px 16px;
+			        border-radius: 4px;
+			        font-size: 14px;
+			        z-index: 1000;
+			        opacity: 0;
+			        transition: opacity 0.3s ease;
+			    `;
+
+			    document.body.appendChild(indicator);
+
+			    // 显示指示器
+			    setTimeout(() => {
+			        indicator.style.opacity = '1';
+			    }, 0);
+
+			    // 2秒后淡出
+			    setTimeout(() => {
+			        indicator.style.opacity = '0';
+			        // 完全淡出后移除元素
+			        setTimeout(() => indicator.remove(), 300);
+			    }, 2000);
+			}
+
+			// 在样式表中添加自动保存指示器的样式
+			const style = document.createElement('style');
+			style.textContent = `
+			    #autoSaveIndicator {
+			        animation: fadeInOut 2.3s ease-in-out;
+			    }
+
+			    @keyframes fadeInOut {
+			        0% { opacity: 0; transform: translateY(20px); }
+			        15% { opacity: 1; transform: translateY(0); }
+			        85% { opacity: 1; transform: translateY(0); }
+			        100% { opacity: 0; transform: translateY(20px); }
+			    }
+			`;
+			document.head.appendChild(style);
+
+			// 待办事项相关函数
+			function toggleTodoPanel() {
+				const panel = document.getElementById('todoPanel');
+				if (panel.style.display === 'none' || !panel.style.display) {
+					panel.style.display = 'block';
+					// 强制重排
+					panel.offsetHeight;
+					panel.classList.add('show');
+					// 添加ESC键监听
+					document.addEventListener('keydown', handleTodoPanelEsc);
+				} else {
+					closeTodoPanel();
+				}
+			}
+
+			// 关闭待办事项面板
+			function closeTodoPanel() {
+				const panel = document.getElementById('todoPanel');
+				panel.classList.remove('show');
+				setTimeout(() => {
+					panel.style.display = 'none';
+				}, 300);
+				// 移除ESC键监听
+				document.removeEventListener('keydown', handleTodoPanelEsc);
+			}
+
+			// 处理ESC键
+			function handleTodoPanelEsc(e) {
+				if (e.key === 'Escape') {
+					closeTodoPanel();
+				}
+			}
+
+			function addTodo() {
+				const input = document.getElementById('todoInput');
+				const text = input.value.trim();
+				if (text) {
+					const todo = {
+						id: Date.now(),
+						text,
+						completed: false,
+						timestamp: new Date().toISOString(),
+						order: todos.length
+					};
+					todos.push(todo);
+					saveTodos();
+					renderTodos();
+					input.value = '';
+				}
+			}
+
+			function toggleTodo(id) {
+				const todo = todos.find(t => t.id === id);
+				if (todo) {
+					todo.completed = !todo.completed;
+					saveTodos();
+					renderTodos();
+				}
+			}
+
+			function deleteTodo(id) {
+				todos = todos.filter(t => t.id !== id);
+				saveTodos();
+				renderTodos();
+			}
+
+			function saveTodos() {
+				localStorage.setItem('todos', JSON.stringify(todos));
+				updateTodoBadge();
+			}
+
+			function updateTodoBadge() {
+				const badge = document.getElementById('todoBadge');
+				const count = todos.filter(t => !t.completed).length;
+				badge.textContent = count;
+				badge.style.display = count > 0 ? 'flex' : 'none';
+			}
+
+			function renderTodos() {
+				const list = document.getElementById('todoList');
+				list.innerHTML = '';
+
+				todos.sort((a, b) => {
+					if (a.completed === b.completed) {
+						if (a.order !== undefined && b.order !== undefined) {
+							return a.order - b.order;
+						}
+						return new Date(b.timestamp) - new Date(a.timestamp);
+					}
+					return a.completed ? 1 : -1;
+				}).forEach((todo, index) => {
+					const item = document.createElement('div');
+					item.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+					item.draggable = true;
+					item.dataset.id = todo.id;
+					item.dataset.index = index;
+					
+					item.innerHTML = `
+						<input type="checkbox" ${todo.completed ? 'checked' : ''} 
+							   onchange="toggleTodo(${todo.id})">
+						<span>${todo.text}</span>
+						<span class="delete-btn" onclick="deleteTodo(${todo.id})">×</span>
+					`;
+
+					// 添加拖动事件监听器
+					item.addEventListener('dragstart', handleDragStart);
+					item.addEventListener('dragend', handleDragEnd);
+					item.addEventListener('dragover', handleDragOver);
+					item.addEventListener('drop', handleDrop);
+					item.addEventListener('dragenter', handleDragEnter);
+					item.addEventListener('dragleave', handleDragLeave);
+
+					list.appendChild(item);
+				});
+
+				updateTodoBadge();
+			}
+
+			// 拖动相关的事件处理函数
+			let draggedItem = null;
+
+			function handleDragStart(e) {
+				draggedItem = this;
+				this.classList.add('dragging');
+				
+				// 设置拖动效果
+				e.dataTransfer.effectAllowed = 'move';
+				e.dataTransfer.setData('text/plain', this.dataset.id);
+			}
+
+			function handleDragEnd(e) {
+				this.classList.remove('dragging');
+				draggedItem = null;
+				
+				// 清除所有项的drag-over效果
+				document.querySelectorAll('.todo-item').forEach(item => {
+					item.classList.remove('drag-over');
+				});
+			}
+
+			function handleDragOver(e) {
+				if (e.preventDefault) {
+					e.preventDefault();
+				}
+				e.dataTransfer.dropEffect = 'move';
+				return false;
+			}
+
+			function handleDragEnter(e) {
+				this.classList.add('drag-over');
+			}
+
+			function handleDragLeave(e) {
+				this.classList.remove('drag-over');
+			}
+
+			function handleDrop(e) {
+				e.stopPropagation();
+				e.preventDefault();
+				
+				if (draggedItem !== this) {
+					// 获取源和目标的索引
+					const fromIndex = parseInt(draggedItem.dataset.index);
+					const toIndex = parseInt(this.dataset.index);
+					
+					// 更新todos数组
+					const [movedItem] = todos.splice(fromIndex, 1);
+					todos.splice(toIndex, 0, movedItem);
+					
+					// 更新order属性
+					todos.forEach((todo, index) => {
+						todo.order = index;
+					});
+					
+					// 保存并重新渲染
+					saveTodos();
+					renderTodos();
+				}
+				
+				return false;
+			}
+
+			// 插入待办列表到编辑器
+			function insertTodoList() {
+				const todoMarkdown = todos.map(todo =>
+					`- [${todo.completed ? 'x' : ' '}] ${todo.text}`
+				).join('\n');
+
+				const doc = editor.getDoc();
+				const cursor = doc.getCursor();
+				doc.replaceRange('\n' + todoMarkdown + '\n', cursor);
+			}
+
+			// 监听回车键添加待办事项
+			document.getElementById('todoInput').addEventListener('keypress', function(e) {
+				if (e.key === 'Enter') {
+					addTodo();
+				}
+			});
+
+			// 页面加载完成后初始化
+			window.onload = function() {
+				initEditor();
+				renderTodos();
+				setupAutoSave();
+				setupShortcuts();
+			};
+
+			// 在原有的 marked 配置中添加 Task List 支持
+			marked.setOptions({
+				breaks: true,
+				gfm: true,
+				tasks: true,
+				highlight: function(code, lang) {
+					if (lang && hljs.getLanguage(lang)) {
+						return hljs.highlight(code, {
+							language: lang
+						}).value;
+					}
+					return hljs.highlightAuto(code).value;
+				}
+			});
+
+			// 保存笔记内容
+			function saveNote() {
+				try {
+					const content = editor.getValue();
+					localStorage.setItem('noteContent', content);
+					lastSaveTime = Date.now(); // 更新最后保存时间
+					showMessage('保存成功！');
+				} catch (error) {
+					console.error('保存失败：', error);
+					showMessage('保存失败，请重试', 'error');
+				}
+			}
+
+			// 显示提示消息
+			function showMessage(text, type = 'success') {
+				// 创建消息元素
+				const message = document.createElement('div');
+				message.className = `message message-${type}`;
+				message.textContent = text;
+				message.style.cssText = `
+					position: fixed;
+					top: 20px;
+					left: 50%;
+					transform: translateX(-50%);
+					padding: 10px 20px;
+					border-radius: 4px;
+					background-color: ${type === 'success' ? '#4CAF50' : '#f44336'};
+					color: white;
+					z-index: 1000;
+					animation: fadeInOut 2s ease-in-out;
+				`;
+
+				// 添加动画样式
+				const style = document.createElement('style');
+				style.textContent = `
+					@keyframes fadeInOut {
+						0% { opacity: 0; transform: translate(-50%, -20px); }
+						15% { opacity: 1; transform: translate(-50%, 0); }
+						85% { opacity: 1; transform: translate(-50%, 0); }
+						100% { opacity: 0; transform: translate(-50%, -20px); }
+					}
+				`;
+				document.head.appendChild(style);
+
+				// 添加到页面
+				document.body.appendChild(message);
+
+				// 2秒后移除消息
+				setTimeout(() => {
+					message.remove();
+					style.remove();
+				}, 2000);
+			}
+
+			// 自动保存功能
+			function setupAutoSave() {
+				editor.on('change', function() {
+					// 清除之前的定时器
+					if (autoSaveTimeout) {
+						clearTimeout(autoSaveTimeout);
+					}
+					
+					// 设置新的定时器，在用户停止输入3秒后自动保存
+					autoSaveTimeout = setTimeout(() => {
+						const content = editor.getValue();
+						localStorage.setItem('noteContent', content);
+						console.log('自动保存成功：', new Date().toLocaleTimeString());
+					}, 3000);
+				});
+			}
+
+			// 导出笔记
+			function exportNote() {
+				const content = editor.getValue();
+				const blob = new Blob([content], { type: 'text/markdown' });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = `笔记_${new Date().toLocaleDateString()}.md`;
+				a.click();
+				URL.revokeObjectURL(url);
+			}
+
+			function setupShortcuts() {
+				document.addEventListener('keydown', function(e) {
+					// 检查是否在输入框中
+					if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+						return;
+					}
+
+					// 检查当前按键组合
+					const pressedModifiers = [];
+					if (e.altKey) pressedModifiers.push('alt');
+					if (e.shiftKey) pressedModifiers.push('shift');
+					if (e.ctrlKey) pressedModifiers.push('ctrl');
+					if (e.metaKey) pressedModifiers.push('meta');
+
+					// 检查是否匹配任何快捷键
+					for (const [action, config] of Object.entries(shortcuts)) {
+						if (e.key.toLowerCase() === config.key.toLowerCase() &&
+							config.modifiers.length === pressedModifiers.length &&
+							config.modifiers.every(mod => pressedModifiers.includes(mod))) {
+							
+							e.preventDefault();
+							switch (action) {
+								case 'toggleTodoPanel':
+									toggleTodoPanel();
+									break;
+								case 'quickAddTodo':
+									quickAddTodo();
+									break;
+								case 'insertTodoList':
+									insertTodoList();
+									break;
+								case 'saveNote':
+									saveNote();
+									break;
+								case 'exportNote':
+									exportNote();
+									break;
+								case 'foldCode':
+									editor.foldCode(editor.getCursor());
+									break;
+							}
+							break;
+						}
+					}
+				});
+			}
+
+			// 更新帮助面板中的快捷键显示
+			function updateShortcutDisplay() {
+				const shortcutTable = document.querySelector('.shortcut-table');
+				if (!shortcutTable) return;
+
+				try {
+					const shortcutsToDisplay = shortcuts || defaultShortcuts;
+					shortcutTable.innerHTML = Object.entries(shortcutsToDisplay).map(([action, config]) => {
+						const modifierText = (config.modifiers || []).map(mod => {
+							switch (mod) {
+								case 'alt': return '⌥';
+								case 'shift': return '⇧';
+								case 'ctrl': return '⌃';
+								case 'meta': return '⌘';
+								default: return mod;
+							}
+						}).join(' + ');
+						
+						const keyText = (config.key || '').toUpperCase();
+						const description = config.description || '';
+						
+						return `<tr><td>${modifierText} + ${keyText}</td><td>${description}</td></tr>`;
+					}).join('');
+				} catch (error) {
+					console.error('更新快捷键显示失败:', error);
+					shortcutTable.innerHTML = '快捷键配置加载失败';
+				}
+			}
+
+			// 在页面加载时更新快捷键显示
+			document.addEventListener('DOMContentLoaded', updateShortcutDisplay);
+
+			// 快速添加待办的函数
+			function quickAddTodo() {
+				const panel = document.getElementById('todoPanel');
+				const input = document.getElementById('todoInput');
+				
+				// 如果面板是隐藏的，先显示面板
+				if (panel.style.display === 'none') {
+					toggleTodoPanel();
+				}
+				
+				// 聚焦到输入框
+				input.focus();
+			}
+
+			// 帮助面板控制
+			function toggleHelpPanel() {
+				const panel = document.getElementById('helpPanel');
+				if (panel.style.display === 'none' || !panel.style.display) {
+					openHelpPanel();
+				} else {
+					closeHelpPanel();
+				}
+			}
+
+			function openHelpPanel() {
+				const panel = document.getElementById('helpPanel');
+				panel.style.display = 'block';
+				// 强制重排
+				panel.offsetHeight;
+				panel.classList.add('show');
+				// 添加ESC键监听
+				document.addEventListener('keydown', handleHelpPanelEsc);
+			}
+
+			function closeHelpPanel() {
+				const panel = document.getElementById('helpPanel');
+				panel.classList.remove('show');
+				setTimeout(() => {
+					panel.style.display = 'none';
+				}, 300);
+				// 移除ESC键监听
+				document.removeEventListener('keydown', handleHelpPanelEsc);
+			}
+
+			function handleHelpPanelEsc(e) {
+				if (e.key === 'Escape') {
+					closeHelpPanel();
+				}
+			}
+
+			// 点击面板外关闭面板
+			document.addEventListener('click', function(e) {
+				const helpPanel = document.getElementById('helpPanel');
+				const helpBtn = document.querySelector('.help-btn');
+				if (!helpPanel.contains(e.target) && !helpBtn.contains(e.target)) {
+					if (helpPanel.classList.contains('show')) {
+						closeHelpPanel();
+					}
+				}
+			});
+
+			function openShortcutSettings() {
+				const panel = document.getElementById('shortcutSettingsPanel');
+				panel.style.display = 'block';
+				updateShortcutSettingsTable();
+				// 添加ESC键监听
+				document.addEventListener('keydown', handleShortcutSettingsEsc);
+			}
+
+			function closeShortcutSettings() {
+				const panel = document.getElementById('shortcutSettingsPanel');
+				panel.style.display = 'none';
+				// 移除ESC键监听
+				document.removeEventListener('keydown', handleShortcutSettingsEsc);
+			}
+
+			function handleShortcutSettingsEsc(e) {
+				if (e.key === 'Escape') {
+					closeShortcutSettings();
+				}
+			}
+
+			function updateShortcutSettingsTable() {
+				const tbody = document.querySelector('#shortcutSettingsTable tbody');
+				tbody.innerHTML = '';
+
+				Object.entries(shortcuts).forEach(([action, config]) => {
+					const tr = document.createElement('tr');
+					tr.innerHTML = `
+						<td>${config.description}</td>
+						<td>
+							<input type="text" class="shortcut-input" 
+								data-action="${action}" 
+								value="${formatShortcut(config)}"
+								readonly
+								onclick="recordShortcut(this)">
+						</td>
+						<td>
+							<button onclick="resetShortcut('${action}')">重置</button>
+						</td>
+					`;
+					tbody.appendChild(tr);
+				});
+			}
+
+			function formatShortcut(config) {
+				return [...config.modifiers, config.key].join(' + ');
+			}
+
+			function recordShortcut(input) {
+				const action = input.dataset.action;
+				input.value = '按下新快捷键...';
+				
+				function handleKeyDown(e) {
+					e.preventDefault();
+					
+					const modifiers = [];
+					if (e.altKey) modifiers.push('alt');
+					if (e.shiftKey) modifiers.push('shift');
+					if (e.ctrlKey) modifiers.push('ctrl');
+					if (e.metaKey) modifiers.push('meta');
+					
+					const key = e.key.toLowerCase();
+					
+					// 忽略单独的修饰键
+					if (['alt', 'shift', 'control', 'meta'].includes(key)) {
+						return;
+					}
+					
+					shortcuts[action] = {
+						...shortcuts[action],
+						modifiers,
+						key
+					};
+					
+					input.value = formatShortcut(shortcuts[action]);
+					
+					// 移除事件监听器
+					document.removeEventListener('keydown', handleKeyDown);
+					input.blur();
+				}
+				
+				document.addEventListener('keydown', handleKeyDown);
+			}
+
+			function resetShortcut(action) {
+				shortcuts[action] = { ...defaultShortcuts[action] };
+				updateShortcutSettingsTable();
+			}
+
+			function resetShortcuts() {
+				shortcuts = { ...defaultShortcuts };
+				updateShortcutSettingsTable();
+				saveShortcuts();
+				updateShortcutDisplay();
+			}
+
+			function saveShortcutSettings() {
+				saveShortcuts();
+				updateShortcutDisplay();
+				closeShortcutSettings();
+			}
+
+			// 在帮助按钮旁边添加设置按钮
+			document.addEventListener('DOMContentLoaded', function() {
+				const settingsButton = document.createElement('button');
+				settingsButton.className = 'settings-button';
+				settingsButton.innerHTML = '⚙️';
+				settingsButton.title = '快捷键设置';
+				settingsButton.onclick = openShortcutSettings;
+				document.body.appendChild(settingsButton);
+			});
+
+			// 在帮助面板的Markdown语法部分添加引用示例
+			document.addEventListener('DOMContentLoaded', function() {
+				const markdownHelp = document.querySelector('.markdown-help');
+				if (markdownHelp) {
+					const existingContent = markdownHelp.innerHTML;
+					markdownHelp.innerHTML = existingContent + `
+						<p>> 引用文本</p>
+						<p>>> 嵌套引用</p>
+					`;
+				}
+			});
+
+			// 配置marked选项，确保正确渲染引用
+			marked.setOptions({
+				breaks: true,
+				gfm: true,
+				tasks: true,
+				highlight: function(code, lang) {
+					if (lang && hljs.getLanguage(lang)) {
+						return hljs.highlight(code, {
+							language: lang
+						}).value;
+					}
+					return hljs.highlightAuto(code).value;
+				},
+				// 添加引用的渲染配置
+				smartLists: true,
+				smartypants: true
+			});
+		</script>
+	</body>
+</html>
