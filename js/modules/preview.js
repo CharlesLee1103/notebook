@@ -6,7 +6,6 @@ import { DOMUtils } from '../utils/dom.js';
 export class PreviewManager {
     constructor(previewElementId) {
         this.previewElement = DOMUtils.get(`#${previewElementId}`);
-        this.markedLoaded = false;
         this.todoIndex = 0;
         this.onTaskItemClickCallback = null;
         
@@ -15,7 +14,7 @@ export class PreviewManager {
         // 添加全局回调函数用于待办项点击
         window.toggleTodoItem = this.toggleTodoItem.bind(this);
         
-        this.init();
+        this.setupMarked();
     }
     
     /**
@@ -29,66 +28,30 @@ export class PreviewManager {
     }
 
     /**
-     * 初始化预览管理器
-     */
-    init() {
-        console.log('PreviewManager 开始初始化');
-        this.loadDependencies(() => {
-            console.log('依赖加载完成，设置Marked');
-            this.setupMarked();
-        });
-    }
-
-    /**
-     * 加载依赖
-     * @param {Function} callback 
-     */
-    loadDependencies(callback) {
-        console.log('开始加载依赖');
-        if (this.markedLoaded) {
-            console.log('依赖已加载，直接调用回调');
-            callback();
-            return;
-        }
-
-        // 加载marked.js
-        const markedScript = DOMUtils.create('script', {
-            src: 'https://cdn.bootcdn.net/ajax/libs/marked/4.0.2/marked.min.js'
-        });
-
-        markedScript.onload = () => {
-            console.log('Marked.js 加载完成');
-            // 加载highlight.js
-            const hljsScript = DOMUtils.create('script', {
-                src: 'https://cdn.bootcdn.net/ajax/libs/highlight.js/11.7.0/highlight.min.js'
-            });
-
-            hljsScript.onload = () => {
-                console.log('Highlight.js 加载完成');
-                this.markedLoaded = true;
-                callback();
-            };
-
-            document.body.appendChild(hljsScript);
-        };
-
-        document.body.appendChild(markedScript);
-    }
-
-    /**
      * 配置marked
      */
     setupMarked() {
         console.log('设置Marked解析器');
         const renderer = new marked.Renderer();
         
-        // 保存原始的listitem渲染函数
+        // 保存原始的list和listitem渲染函数
+        const originalList = renderer.list;
         const originalListitem = renderer.listitem;
         
+        // 自定义列表渲染
+        renderer.list = function(body, ordered, start) {
+            const type = ordered ? 'ol' : 'ul';
+            const startAttr = (ordered && start !== 1) ? (' start="' + start + '"') : '';
+            return '<' + type + startAttr + '>\n' + body + '</' + type + '>\n';
+        };
+        
         // 自定义待办项渲染，使用自定义的元素替代原生checkbox
-        renderer.listitem = (text, task, checked) => {
-            if (text.includes('[ ]') || text.includes('[x]')) {
-                const isChecked = text.includes('[x]');
+        renderer.listitem = (text) => {
+            const taskRegex = /^\[([ x])\] /;
+            const match = text.match(taskRegex);
+            
+            if (match) {
+                const isChecked = match[1] === 'x';
                 this.todoIndex++;
                 console.log('渲染待办项', this.todoIndex, text, isChecked);
                 
@@ -99,7 +62,7 @@ export class PreviewManager {
                              onclick="window.toggleTodoItem(this.closest('.task-item').getAttribute('data-line'), !this.classList.contains('checked')); this.classList.toggle('checked'); return false;">
                             <div class="checkbox-inner"></div>
                         </div>
-                        <span class="task-text" onclick="var checkbox = this.previousElementSibling; checkbox.click();">${text.replace(/\[([ x])\]/, '')}</span>
+                        <span class="task-text" onclick="var checkbox = this.previousElementSibling; checkbox.click();">${text.replace(taskRegex, '')}</span>
                     </li>`;
             }
             return originalListitem.call(renderer, text);
@@ -110,6 +73,11 @@ export class PreviewManager {
             renderer: renderer,
             gfm: true,
             breaks: true,
+            pedantic: false,
+            sanitize: false,
+            smartLists: true,
+            smartypants: false,
+            xhtml: false,
             highlight: (code, lang) => {
                 if (lang && hljs.getLanguage(lang)) {
                     try {
