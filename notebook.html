@@ -1381,7 +1381,6 @@
 			    
 			    if (container.classList.contains('fullscreen')) {
 			        showFullscreenToolbar();
-			        document.addEventListener('keydown', fullscreenKeyHandler);
 			        // 在编辑全屏模式下显示 vim 开关
 			        if (container.classList.contains('hide-preview')) {
 			            document.querySelector('.vim-toggle').style.display = 'block';
@@ -1389,7 +1388,6 @@
 			    } else {
 			        removeFullscreenToolbar();
 			        container.classList.remove('hide-preview', 'only-preview');
-			        document.removeEventListener('keydown', fullscreenKeyHandler);
 			        // 非全屏模式隐藏 vim 开关
 			        document.querySelector('.vim-toggle').style.display = 'none';
 			    }
@@ -1634,6 +1632,7 @@
 			                container.classList.add('only-preview');
 			                document.getElementById('onlyPreviewBtn').innerText = '恢复双栏';
 			                document.getElementById('togglePreviewBtn').innerText = '隐藏预览';
+			                // 强制更新预览内容
 			                updatePreview();
 			            } else if (container.classList.contains('only-preview')) {
 			                // 在预览全屏，退出全屏
