@@ -391,7 +391,7 @@ export class PreviewManager {
         return new Promise((resolve, reject) => {
             if (!window.html2canvas) {
                 const script = DOMUtils.create('script', {
-                    src: 'https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+                    src: 'js/lib/html2canvas.min.js'
                 });
                 
                 script.onload = () => this.doExportImage(resolve);
