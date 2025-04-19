@@ -80,10 +80,9 @@ export class Editor {
      * 保存内容
      */
     save() {
-        const content = this.editor.getValue();
-        if (StorageUtils.set(STORAGE_KEYS.NOTE_CONTENT, content)) {
-            this.showMessage('已保存');
-        }
+        const content = this.getContent();
+        console.log('保存编辑器内容，长度:', content.length);
+        StorageUtils.set(STORAGE_KEYS.NOTE_CONTENT, content);
     }
 
     /**
@@ -107,17 +106,23 @@ export class Editor {
 
     /**
      * 获取编辑器内容
+     * @returns {string}
      */
     getContent() {
-        return this.editor.getValue();
+        const content = this.editor.getValue();
+        console.log('获取编辑器内容，长度:', content.length);
+        return content;
     }
 
     /**
      * 设置编辑器内容
      * @param {string} content 
      */
-    setContent(content) {
+    setValue(content) {
+        console.log('设置编辑器内容，长度:', content.length);
         this.editor.setValue(content);
+        // 将光标移动到开头
+        this.editor.setCursor(0, 0);
     }
 
     /**

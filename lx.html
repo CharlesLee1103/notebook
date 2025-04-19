@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>在线记事本</title>
+		<!-- 引入 CodeMirror CSS -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/lib/codemirror.css">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/theme/dracula.css">
+		<!-- 引入 CodeMirror Vim 模式 -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/keymap/vim.js">
+		<!-- 自定义样式 -->
+		<style>
+			body,
+			html {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				font-family: Arial, sans-serif;
+			}
+
+			#toolbar {
+				background-color: #6c63ff;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 10px;
+			}
+
+			#toolbar button {
+				background-color: #fff;
+				border: none;
+				padding: 10px;
+				margin: 0 5px;
+				cursor: pointer;
+			}
+
+			#editor-container,
+			#preview-container {
+				height: calc(100% - 60px);
+				display: flex;
+			}
+
+			#editor,
+			#preview {
+				flex: 1;
+				padding: 20px;
+				box-sizing: border-box;
+				border: none;
+			}
+
+			#editor {
+				background-color: #282a36;
+				color: #f8f8f2;
+			}
+
+			#preview {
+				background-color: #fff;
+				color: #000;
+				overflow: auto;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.fullscreen {
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				z-index: 1000;
+				background-color: #fff;
+			}
+
+			.two-column {
+				display: flex;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="toolbar">
+			<button id="new-button">新建</button>
+			<button id="save-button">保存</button>
+			<button id="toggle-fullscreen-edit">全屏编辑</button>
+			<button id="toggle-fullscreen-preview">全屏预览</button>
+			<button id="toggle-split-view">双栏模式</button>
+		</div>
+		<div id="editor-container">
+			<textarea id="editor" name="editor"></textarea>
+		</div>
+		<div id="preview-container" class="hidden">
+			<div id="preview"></div>
+		</div>
+
+		<!-- 引入 CodeMirror 和其插件 -->
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/lib/codemirror.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/mode/markdown/markdown.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.8/keymap/vim.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/file-saver/FileSaver.min.js"></script>
+
+		<!-- 自定义脚本 -->
+		<script>
+			const editorElement = document.getElementById('editor');
+			const previewElement = document.getElementById('preview-container');
+			const togglePreview = () => previewElement.classList.toggle('hidden');
+
+			const editor = CodeMirror.fromTextArea(editorElement, {
+				mode: 'markdown',
+				theme: 'dracula',
+				keyMap: 'vim',
+				lineNumbers: true,
+				lineWrapping: true,
+				extraKeys: {
+					'Ctrl-F': 'findPersistent',
+					'Ctrl-H': 'replace',
+				}
+			});
+
+			document.getElementById('toggle-fullscreen-edit').addEventListener('click', () => {
+				document.getElementById('editor-container').classList.toggle('fullscreen');
+			});
+
+			document.getElementById('toggle-fullscreen-preview').addEventListener('click', () => {
+				document.getElementById('preview-container').classList.toggle('fullscreen');
+			});
+
+			document.getElementById('toggle-split-view').addEventListener('click', () => {
+				document.body.classList.toggle('two-column');
+				togglePreview();
+				updatePreview();
+			});
+
+			const saveDocument = () => {
+				const content = editor.getValue();
+				localStorage.setItem('document', content);
+				alert('文档已保存');
+			};
+
+			const loadDocument = () => {
+				const content = localStorage.getItem('document');
+				if (content) {
+					editor.setValue(content);
+				}
+			};
+
+			document.getElementById('save-button').addEventListener('click', saveDocument);
+			document.getElementById('new-button').addEventListener('click', () => {
+				if (confirm('新建文档会覆盖当前文档，是否继续？')) {
+					saveDocument();
+					editor.setValue('');
+					localStorage.setItem('document', '');
+				}
+			});
+
+			const updatePreview = () => {
+				const markdown = editor.getValue();
+				previewElement.innerHTML = marked(markdown);
+			};
+
+			editor.on('change', updatePreview);
+
+			loadDocument();
+			updatePreview();
+		</script>
+	</body>
+</html>

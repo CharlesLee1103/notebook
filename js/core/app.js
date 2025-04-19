@@ -3,6 +3,7 @@ import { PreviewManager } from '../modules/preview.js';
 import { TodoManager } from '../modules/todo.js';
 import { ShortcutManager } from '../modules/shortcuts.js';
 import { SettingsManager } from '../modules/settings.js';
+import { HistoryManager } from '../modules/history.js';
 import { DOMUtils } from '../utils/dom.js';
 import { CSS_CLASSES, DOM_IDS } from './config.js';
 
@@ -16,8 +17,18 @@ export class App {
         this.todo = null;
         this.shortcuts = null;
         this.settings = null;
+        this.history = null;
         this.container = DOMUtils.get('.container');
         
+        // 移除初始加载类
+        document.body.classList.remove('initial-load');
+        
+        // 立即进入编辑全屏模式
+        if (this.container && !this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+            this.container.classList.add(CSS_CLASSES.FULLSCREEN);
+            this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+            document.body.classList.add('fullscreen-mode');
+        }
         this.init();
     }
 
@@ -25,12 +36,19 @@ export class App {
      * 初始化应用
      */
     init() {
+        // 显示全屏工具栏
+        this.showFullscreenToolbar();
+        if (DOMUtils.get('#togglePreviewBtn')) {
+            DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
+        }
         // 初始化各个模块
         this.editor = new Editor(DOM_IDS.EDITOR);
         this.preview = new PreviewManager(DOM_IDS.PREVIEW);
         this.todo = new TodoManager();
         this.shortcuts = new ShortcutManager();
         this.settings = new SettingsManager(this.editor);
+        this.history = new HistoryManager();
+
 
         // 注册快捷键
         this.registerShortcuts();
@@ -38,14 +56,126 @@ export class App {
         // 绑定事件
         this.bindEvents();
         
-        // 自动进入编辑全屏模式
-        setTimeout(() => {
-            if (!this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
-                this.toggleFullscreen();
-                this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-                DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
-            }
-        }, 100);
+        // 渲染历史记录点
+        this.renderHistoryDots();
+        
+    }
+
+    /**
+     * 渲染历史记录点
+     */
+    renderHistoryDots() {
+        const historyDotsContainer = DOMUtils.get('#historyDots');
+        console.log('历史记录容器元素:', historyDotsContainer);
+        
+        if (!historyDotsContainer) {
+            console.error('找不到历史记录点容器');
+            return;
+        }
+
+        historyDotsContainer.innerHTML = '';
+        const count = this.history.getHistoryCount();
+        const currentIndex = this.history.getCurrentIndex();
+
+        console.log('渲染历史记录点:', {
+            count,
+            currentIndex,
+            containerExists: !!historyDotsContainer,
+            containerChildren: historyDotsContainer.children.length
+        });
+
+        for (let i = 0; i < count; i++) {
+            console.log(`创建第 ${i + 1} 个历史记录点`);
+            const dot = DOMUtils.create('span', {
+                className: `history-dot${i === currentIndex ? ' active' : ''}`,
+                title: `历史记录 ${i + 1}`
+            });
+            
+            // 单独绑定点击事件
+            dot.addEventListener('click', (e) => {
+                console.log('历史记录点被点击11:', {
+                    index: i,
+                    event: e,
+                    target: e.target
+                });
+                this.loadHistory(i);
+            });
+            
+            historyDotsContainer.appendChild(dot);
+            console.log(`第 ${i + 1} 个历史记录点已添加到容器`);
+        }
+        
+        console.log('历史记录点渲染完成，当前容器子元素数量:', historyDotsContainer.children.length);
+    }
+
+    /**
+     * 加载指定索引的历史记录
+     * @param {number} index 
+     */
+    loadHistory(index) {
+        console.log('开始加载历史记录:', index);
+        
+        // 先保存当前内容
+        const currentContent = this.editor.getContent();
+        if (currentContent.trim()) {
+            console.log('保存当前内容到历史记录');
+            this.history.addHistory(currentContent);
+        }
+        
+        // 获取并加载历史记录
+        const history = this.history.getHistory(index);
+        if (history) {
+            console.log('成功获取历史记录:', history);
+            console.log('历史记录内容长度:', history.content.length);
+            console.log('历史记录内容预览:', history.content.substring(0, 100));
+            
+            this.editor.editor.setValue(history.content);
+            this.editor.save();
+            
+            // 更新历史记录点的显示
+            const dots = document.querySelectorAll('.history-dot');
+            dots.forEach((dot, i) => {
+                if (i === index) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+            
+            // 重新渲染历史记录点
+            this.renderHistoryDots();
+            
+            console.log('历史记录加载完成');
+        } else {
+            console.error('获取历史记录失败:', index);
+        }
+    }
+
+    /**
+     * 创建新文档
+     */
+    createNewNote() {
+        // 保存当前内容到历史记录
+        const currentContent = this.editor.getContent();
+        console.log('创建新文档，当前内容长度:', currentContent.length);
+        
+        if (currentContent.trim()) {
+            console.log('保存当前内容到历史记录');
+            this.history.addHistory(currentContent);
+        }
+
+        // 清空编辑器
+        this.editor.editor.setValue('');
+        this.editor.save();
+        
+        // 移除所有点的active状态
+        const dots = document.querySelectorAll('.history-dot');
+        dots.forEach(dot => dot.classList.remove('active'));
+        
+        // 更新历史记录点
+        this.renderHistoryDots();
+        
+        console.log('新文档创建完成');
     }
 
     /**
@@ -149,6 +279,43 @@ export class App {
      */
     bindEvents() {
         console.log('App - 开始绑定事件');
+        
+        // 绑定工具栏按钮事件
+        DOMUtils.on(DOMUtils.get('#newNoteBtn'), 'click', () => {
+            this.createNewNote();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#saveBtn'), 'click', () => {
+            this.editor.save();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#exportBtn'), 'click', () => {
+            this.exportNote();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#todoBtn'), 'click', () => {
+            this.todo.togglePanel();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#fullscreenBtn'), 'click', () => {
+            this.toggleFullscreen();
+        });
+        
+        // 文件导入处理
+        const fileInput = DOMUtils.get('#fileInput');
+        if (fileInput) {
+            DOMUtils.on(fileInput, 'change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.editor.editor.setValue(e.target.result);
+                        this.editor.save();
+                    };
+                    reader.readAsText(file);
+                }
+            });
+        }
         
         // 编辑器内容变化时更新预览
         this.editor.editor.on('change', () => {
@@ -258,6 +425,19 @@ export class App {
             });
         }
         
+        // 绑定全屏工具栏按钮事件
+        DOMUtils.on(DOMUtils.get('#togglePreviewBtn'), 'click', () => {
+            this.togglePreview();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#onlyPreviewBtn'), 'click', () => {
+            this.toggleViewMode();
+        });
+        
+        DOMUtils.on(DOMUtils.get('#exitFullscreenBtn'), 'click', () => {
+            this.exitFullscreen();
+        });
+        
         console.log('App - 事件绑定完成');
     }
 
@@ -342,38 +522,10 @@ export class App {
      * 显示全屏工具栏
      */
     showFullscreenToolbar() {
-        this.removeFullscreenToolbar();
-        
-        const toolbar = DOMUtils.create('div', {
-            className: 'fullscreen-toolbar'
-        });
-
-        // 切换预览按钮
-        const togglePreviewBtn = DOMUtils.create('button', {
-            id: 'togglePreviewBtn',
-            innerText: '切换预览',
-            onclick: () => this.togglePreview()
-        });
-
-        // 视图模式切换按钮
-        const viewModeBtn = DOMUtils.create('button', {
-            id: 'onlyPreviewBtn',
-            innerText: '循环视图模式',
-            onclick: () => this.toggleViewMode()
-        });
-
-        // 退出全屏按钮
-        const exitFullscreenBtn = DOMUtils.create('button', {
-            id: 'exitFullscreenBtn',
-            innerText: '退出全屏',
-            onclick: () => this.exitFullscreen()
-        });
-
-        toolbar.appendChild(togglePreviewBtn);
-        toolbar.appendChild(viewModeBtn);
-        toolbar.appendChild(exitFullscreenBtn);
-        
-        document.body.appendChild(toolbar);
+        const toolbar = DOMUtils.get('.fullscreen-toolbar');
+        if (toolbar) {
+            toolbar.style.display = 'flex';
+        }
     }
 
     /**
@@ -382,7 +534,7 @@ export class App {
     removeFullscreenToolbar() {
         const toolbar = DOMUtils.get('.fullscreen-toolbar');
         if (toolbar) {
-            toolbar.remove();
+            toolbar.style.display = 'none';
         }
     }
 
@@ -390,12 +542,13 @@ export class App {
      * 切换预览显示
      */
     togglePreview() {
+        const toggleBtn = DOMUtils.get('#togglePreviewBtn');
         if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
             this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-            DOMUtils.get('#togglePreviewBtn').innerText = '隐藏预览';
+            if (toggleBtn) toggleBtn.innerText = '隐藏预览';
         } else if (!this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
             this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-            DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
+            if (toggleBtn) toggleBtn.innerText = '显示预览';
         }
     }
 
@@ -418,13 +571,13 @@ export class App {
         const content = this.editor.getContent();
         const blob = new Blob([content], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
-        const link = DOMUtils.create('a', {
+        const a = DOMUtils.create('a', {
             href: url,
-            download: 'notebook.md'
+            download: `notebook_${new Date().toISOString().slice(0,10)}.md`
         });
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
 } 

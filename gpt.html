@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>在线记事本</title>
+  <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.10/lib/codemirror.css">
+  <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.10/theme/monokai.css">
+  <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.10/theme/dracula.css">
+  <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.10/theme/idea.css">
+  <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.10/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.min.css">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #7b5cd6;
+      color: white;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .toolbar button {
+      margin: 0 4px;
+      background: white;
+      border: none;
+      color: #7b5cd6;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .container {
+      flex: 1;
+      display: flex;
+      height: 100%;
+    }
+    #editor, #preview {
+      width: 50%;
+      height: 100%;
+      overflow: auto;
+    }
+    #editor .CodeMirror {
+      height: 100%;
+    }
+    #preview {
+      padding: 20px;
+    }
+    .fullscreen {
+      position: fixed !important;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 999;
+      background: white;
+    }
+    #history {
+      background: #f4f4f4;
+      border-top: 1px solid #ccc;
+      padding: 5px 10px;
+      font-size: 0.9em;
+    }
+    #history div {
+      cursor: pointer;
+      padding: 4px;
+    }
+    #history div:hover {
+      background: #e2e2e2;
+    }
+    .todo-done {
+      text-decoration: line-through;
+      color: gray;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div>在线记事本</div>
+  <div class="toolbar">
+    <button onclick="newNote()">新建</button>
+    <button onclick="saveNote()">保存</button>
+    <button onclick="toggleView()">待办</button>
+    <button onclick="exportImage()">导出</button>
+    <button onclick="toggleFullscreen('editor')">编辑全屏</button>
+    <button onclick="toggleFullscreen('preview')">预览全屏</button>
+    <button onclick="resetLayout()">双栏</button>
+    <button onclick="toggleVimMode()">切换 Vim 模式</button>
+    <select id="themeSelect" onchange="changeTheme(this.value)">
+      <option value="monokai">Monokai</option>
+      <option value="dracula">Dracula</option>
+      <option value="idea">Idea</option>
+    </select>
+  </div>
+</header>
+<div class="container">
+  <div id="editor"></div>
+  <div id="preview" class="markdown-body" onclick="handlePreviewClick(event)"></div>
+</div>
+<div id="history"></div>
+<script src="https://unpkg.com/codemirror@5.65.10/lib/codemirror.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/addon/edit/matchbrackets.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/addon/search/searchcursor.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/addon/search/search.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/addon/dialog/dialog.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/addon/display/fullscreen.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/keymap/vim.js"></script>
+<script src="https://unpkg.com/codemirror@5.65.10/mode/markdown/markdown.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+  const markedLib = window.marked?.marked || window.marked;
+  let vimMode = false;
+  let currentTheme = 'monokai';
+
+  const editor = CodeMirror(document.getElementById('editor'), {
+    mode: 'markdown',
+    theme: currentTheme,
+    lineNumbers: true,
+    lineWrapping: true,
+    keyMap: 'default',
+    extraKeys: {
+      'Ctrl-Shift-F': 'findPersistent',
+      'Cmd-Shift-F': 'findPersistent',
+      'Ctrl-Shift-S': () => saveNote(),
+      'Cmd-Shift-S': () => saveNote(),
+      'Ctrl-B': () => toggleFullscreen('editor'),
+      'Cmd-B': () => toggleFullscreen('editor')
+    }
+  });
+
+  function handlePreviewClick(event) {
+    const target = event.target;
+    if (target.tagName === 'INPUT' && target.type === 'checkbox') {
+      const checkbox = target;
+      const lineText = checkbox.parentElement.textContent.trim();
+      const isChecked = checkbox.checked;
+      const updatedLine = isChecked
+        ? lineText.replace(/^- \[ \]/, '- [x]')
+        : lineText.replace(/^- \[x\]/i, '- [ ]');
+
+      const content = editor.getValue().split('\n');
+      for (let i = 0; i < content.length; i++) {
+        if (content[i].includes(lineText)) {
+          content[i] = updatedLine;
+          break;
+        }
+      }
+      editor.setValue(content.join('\n'));
+      updatePreview();
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,19 +1,42 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-	<head>
-	    <meta charset="UTF-8">
-	    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Markdown 笔记本</title>
-    
+
     <!-- 引入第三方库 -->
-	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.css">
-    
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.css">
+    <!-- 添加KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+
     <!-- 引入自定义样式 -->
     <link rel="stylesheet" href="css/style.css">
     
+    <!-- 初始全屏样式 -->
+    <style>
+        .container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            background: #fff;
+        }
+        body.initial-load {
+            overflow: hidden;
+        }
+        body.initial-load .preview-section {
+            display: none;
+        }
+    </style>
+
     <!-- 引入第三方脚本 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
@@ -25,149 +48,116 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/keymap/vim.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    
+    <!-- 添加KaTeX JS -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
     <!-- 只保留一个入口文件 -->
     <script type="module" src="js/main.js"></script>
-	</head>
-	<body>
-		<div class="container">
-			<div class="toolbar">
+</head>
+
+<body class="initial-load">
+    <div class="container">
+        <div class="toolbar">
             <button id="newNoteBtn" class="btn" title="新建笔记">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
                 新建
-				</button>
+            </button>
             <button id="saveBtn" class="btn" title="保存笔记">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M13.5 13.5H2.5V2.5H11L13.5 5V13.5Z" stroke="currentColor" stroke-width="2"/>
-                    <path d="M4.5 13.5V9.5H11.5V13.5" stroke="currentColor" stroke-width="2"/>
+                    <path d="M13.5 13.5H2.5V2.5H11L13.5 5V13.5Z" stroke="currentColor" stroke-width="2" />
+                    <path d="M4.5 13.5V9.5H11.5V13.5" stroke="currentColor" stroke-width="2" />
                 </svg>
                 保存
             </button>
             <label class="upload-label" title="导入笔记">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 12V4M8 4L5 7M8 4L11 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M2 12V14H14V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 12V4M8 4L5 7M8 4L11 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    <path d="M2 12V14H14V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
                 导入
                 <input type="file" id="fileInput" class="file-upload" accept=".md,.txt">
-				</label>
+            </label>
             <button id="exportBtn" class="btn" title="导出笔记">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 4V12M8 12L5 9M8 12L11 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M2 14V12H14V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 4V12M8 12L5 9M8 12L11 9" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" />
+                    <path d="M2 14V12H14V14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
                 导出
             </button>
             <button id="todoBtn" class="btn" title="待办事项">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
                 待办
                 <span id="todoBadge" class="badge" style="display: none;">0</span>
             </button>
             <button id="fullscreenBtn" class="btn" title="全屏模式">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 6V2H6M14 6V2H10M2 10V14H6M14 10V14H10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M2 6V2H6M14 6V2H10M2 10V14H6M14 10V14H10" stroke="currentColor" stroke-width="2" />
                 </svg>
                 全屏
-				</button>
-			</div>
-        
-			<div class="editor-container">
-				<div class="editor-section">
-					<textarea id="editor"></textarea>
-				</div>
-				<div class="preview-section">
-					<div id="preview" class="preview-content"></div>
-				</div>
-			</div>
-		</div>
+            </button>
+        </div>
 
-		<div class="todo-panel" id="todoPanel">
-			<div class="todo-header">
-				<h3>待办事项</h3>
+        <div id="historyDots" class="history-dots" title="历史记录"></div>
+
+        <div class="editor-container">
+            <div class="editor-section">
+                <textarea id="editor"></textarea>
+            </div>
+            <div class="preview-section">
+                <div id="preview" class="preview-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="todo-panel" id="todoPanel">
+        <div class="todo-header">
+            <h3>待办事项</h3>
             <button class="close-btn" id="closeTodoBtn">&times;</button>
-			</div>
-			<div class="todo-input-container">
+        </div>
+        <div class="todo-input-container">
             <input type="text" id="todoInput" class="todo-input" placeholder="添加新的待办事项...">
             <button class="btn" id="addTodoBtn">添加</button>
-			</div>
+        </div>
         <div id="todoList" class="todo-list"></div>
-		</div>
+    </div>
 
-    <button class="help-btn" id="helpBtn" title="帮助">?</button>
-		<div class="help-panel" id="helpPanel">
-			<div class="help-header">
-				<h3>使用帮助</h3>
-            <button class="close-btn" id="closeHelpBtn">&times;</button>
-			</div>
-			<div class="help-content">
-				<section>
-					<h4>快捷键</h4>
-					<table class="shortcut-table">
-                    <tr><td>Ctrl + S</td><td>保存笔记</td></tr>
-                    <tr><td>Ctrl + N</td><td>新建笔记</td></tr>
-                    <tr><td>Ctrl + O</td><td>导入笔记</td></tr>
-                    <tr><td>Ctrl + E</td><td>导出笔记</td></tr>
-                    <tr><td>Ctrl + T</td><td>打开待办事项</td></tr>
-                    <tr><td>Ctrl + F</td><td>切换全屏</td></tr>
-                    <tr><td>Ctrl + Enter</td><td>切换全屏/非全屏模式</td></tr>
-                    <tr><td>Cmd + Enter</td><td>在编辑/预览/双栏模式间循环切换</td></tr>
-                    <tr><td>Esc</td><td>退出全屏</td></tr>
-					</table>
-				</section>
-				<section>
-					<h4>Markdown 语法</h4>
-					<div class="markdown-help">
-                    <p># 一级标题</p>
-                    <p>## 二级标题</p>
-						<p>**粗体**</p>
-						<p>*斜体*</p>
-                    <p>[链接](url)</p>
-                    <p>![图片](url)</p>
-                    <p>- 无序列表</p>
-                    <p>1. 有序列表</p>
-						<p>- [ ] 待办项</p>
-						<p>- [x] 已完成项</p>
-                    <p>```代码块```</p>
-                    <p>> 引用</p>
-					</div>
-				</section>
-				<section>
-                <h4>主要功能</h4>
-					<ul class="feature-list">
-                    <li>实时预览 Markdown</li>
-                    <li>自动保存</li>
-                    <li>代码高亮</li>
-                    <li>待办事项管理</li>
-                    <li>全屏编辑模式</li>
-                    <li>导入/导出笔记</li>
-                    <li>Vim 模式支持</li>
-					</ul>
-				</section>
-			</div>
-		</div>
-
-    <button class="settings-button" id="settingsBtn" title="设置">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 5C6.34315 5 5 6.34315 5 8C5 9.65685 6.34315 11 8 11C9.65685 11 11 9.65685 11 8C11 6.34315 9.65685 5 8 5Z" stroke="currentColor" stroke-width="2"/>
-            <path d="M2.5 8.5V7.5L4 7L4.5 6L3.5 4.5L4.5 3.5L6 4.5L7 4L7.5 2.5H8.5L9 4L10 4.5L11.5 3.5L12.5 4.5L11.5 6L12 7L13.5 7.5V8.5L12 9L11.5 10L12.5 11.5L11.5 12.5L10 11.5L9 12L8.5 13.5H7.5L7 12L6 11.5L4.5 12.5L3.5 11.5L4.5 10L4 9L2.5 8.5Z" stroke="currentColor" stroke-width="2"/>
-        </svg>
-    </button>
+    <div class="icon-container">
+        <button class="help-btn" id="helpBtn" title="帮助">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                    d="M8 1.5C4.41015 1.5 1.5 4.41015 1.5 8C1.5 11.5899 4.41015 14.5 8 14.5C11.5899 14.5 14.5 11.5899 14.5 8C14.5 4.41015 11.5899 1.5 8 1.5ZM8.75 11.5H7.25V10H8.75V11.5ZM8.75 8.75H7.25C7.25 6.5 9.5 6.75 9.5 5C9.5 4.17157 8.82843 3.5 8 3.5C7.17157 3.5 6.5 4.17157 6.5 5H5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5C11 7.25 8.75 7 8.75 8.75Z"
+                    fill="currentColor" />
+            </svg>
+        </button>
+        <button class="settings-button" id="settingsBtn" title="设置">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                    d="M8 5C6.34315 5 5 6.34315 5 8C5 9.65685 6.34315 11 8 11C9.65685 11 11 9.65685 11 8C11 6.34315 9.65685 5 8 5Z"
+                    stroke="currentColor" stroke-width="2" />
+                <path
+                    d="M2.5 8.5V7.5L4 7L4.5 6L3.5 4.5L4.5 3.5L6 4.5L7 4L7.5 2.5H8.5L9 4L10 4.5L11.5 3.5L12.5 4.5L11.5 6L12 7L13.5 7.5V8.5L12 9L11.5 10L12.5 11.5L11.5 12.5L10 11.5L9 12L8.5 13.5H7.5L7 12L6 11.5L4.5 12.5L3.5 11.5L4.5 10L4 9L2.5 8.5Z"
+                    stroke="currentColor" stroke-width="2" />
+            </svg>
+        </button>
+    </div>
 
     <div class="settings-panel" id="settingsPanel" style="display: none;">
-			<div class="settings-header">
+        <div class="settings-header">
             <h3>设置</h3>
             <button class="close-btn" id="closeSettingsBtn">&times;</button>
-			</div>
-			<div class="settings-content">
+        </div>
+        <div class="settings-content">
             <table>
-						<tr>
+                <tr>
                     <td>自动保存</td>
                     <td><input type="checkbox" id="autoSaveToggle" checked></td>
-						</tr>
+                </tr>
                 <tr>
                     <td>Vim 模式</td>
                     <td><input type="checkbox" id="vimModeToggle"></td>
@@ -176,21 +166,22 @@
                     <td>字体大小</td>
                     <td><input type="number" id="fontSizeInput" value="15" min="12" max="24"></td>
                 </tr>
-				</table>
+            </table>
         </div>
-				<div class="settings-buttons">
+        <div class="settings-buttons">
             <button class="btn" id="saveSettingsBtn">保存</button>
             <button class="btn" id="resetSettingsBtn">重置</button>
-				</div>
-			</div>
+        </div>
+    </div>
 
     <div class="fullscreen-toolbar" style="display: none;">
-        <button id="togglePreviewBtn">隐藏预览</button>
-        <button id="toggleEditorBtn">仅预览</button>
+        <button id="togglePreviewBtn">显示预览</button>
+        <button id="onlyPreviewBtn">循环视图模式</button>
         <button id="exitFullscreenBtn">退出全屏</button>
         <button id="exportImgBtn">导出图片</button>
-		</div>
+    </div>
 
     <button class="vim-toggle" id="vimToggle">Vim: Off</button>
-	</body>
+</body>
+
 </html>

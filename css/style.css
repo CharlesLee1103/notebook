@@ -116,6 +116,47 @@ body {
     line-height: 1.8;
 }
 
+/* LaTeX公式样式 */
+.preview-content .katex-display {
+    margin: 1.5em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.5em 0;
+}
+
+.preview-content .katex {
+    font-size: 1.1em;
+}
+
+.preview-content .katex-display > .katex {
+    font-size: 1.21em;
+}
+
+.preview-content p .katex {
+    margin: 0 0.2em;
+}
+
+/* 支持LaTeX公式换行和对齐 */
+.preview-content .katex-display .katex-html {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.preview-content .katex-display .align {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.preview-content .katex-display .align .align-row:not(:last-child) {
+    margin-bottom: 0.5em;
+}
+
+.preview-content .katex-display .tag {
+    position: relative;
+}
+
 /* 待办事项面板 */
 .todo-panel {
     position: fixed;
@@ -379,33 +420,31 @@ body {
 }
 
 /* 帮助按钮样式 */
-.help-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-size: 20px;
+.help-btn, .settings-button {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    cursor: pointer;
     transition: all 0.3s ease;
-    position: fixed;
-    right: 20px;
-    bottom: 20px;
-    z-index: 999;
+    margin-left: 8px;
 }
 
-.help-btn:hover {
+.help-btn:hover, .settings-button:hover {
+    background: var(--primary-light);
+    color: white;
+    border-color: var(--primary-light);
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
-    background: var(--primary-dark);
+    box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);
 }
 
-.help-btn:active {
+.help-btn:active, .settings-button:active {
     transform: translateY(0);
 }
 
@@ -570,35 +609,14 @@ body {
     padding: 5px;
 }
 
-/* 设置按钮样式 */
-.settings-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
+/* 图标容器样式 */
+.icon-container {
     position: fixed;
+    top: 20px;
     right: 20px;
-    bottom: 70px;
-    z-index: 999;
-}
-
-.settings-button:hover {
-    transform: translateY(-2px) rotate(30deg);
-    box-shadow: 0 4px 15px rgba(124, 77, 255, 0.3);
-    background: var(--primary-dark);
-}
-
-.settings-button:active {
-    transform: translateY(0) rotate(30deg);
+    display: flex;
+    gap: 12px;
+    z-index: 1000;
 }
 
 /* 引用样式 */
@@ -649,27 +667,36 @@ body.fullscreen-mode {
 /* 全屏下悬浮按钮区样式 */
 .fullscreen-toolbar {
     position: fixed;
-    top: 24px;
-    right: 36px;
-    z-index: 3000;
+    top: 20px;
+    right: 20px;
     display: flex;
-    gap: 12px;
+    gap: 10px;
+    z-index: 1100;
+    background: var(--surface-color);
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
 
 .fullscreen-toolbar button {
-    background: var(--primary-color);
-    color: #fff;
+    padding: 8px 16px;
     border: none;
     border-radius: 6px;
-    padding: 8px 16px;
+    background: var(--primary-color);
+    color: white;
     font-size: 14px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(124,77,255,0.08);
-    transition: background 0.2s;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
 }
 
 .fullscreen-toolbar button:hover {
     background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(124, 77, 255, 0.2);
 }
 
 /* 全屏下隐藏/只显示预览的样式 */
@@ -823,4 +850,71 @@ body.fullscreen-mode {
 .preview-content ul li.task-item {
     margin-left: -24px;
     padding-left: 24px;
+}
+
+/* 历史记录点容器 */
+.history-dots {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+    background: var(--surface-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin: 12px 0;
+    min-height: 36px;
+}
+
+/* 历史记录点 */
+.history-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background-color: var(--surface-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.history-dot:hover {
+    transform: scale(1.2);
+    border-color: var(--primary-light);
+    background-color: var(--surface-color);
+    box-shadow: 0 0 0 4px rgba(124,77,255,0.1);
+}
+
+.history-dot:active {
+    transform: scale(0.9);
+}
+
+.history-dot.active {
+    border-color: var(--primary-color);
+    background-color: var(--primary-color);
+    transform: scale(1.2);
+    box-shadow: 0 0 0 4px rgba(124,77,255,0.2);
+}
+
+.history-dot::before {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.history-dot:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-4px);
 } 

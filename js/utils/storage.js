@@ -4,45 +4,43 @@
 export class StorageUtils {
     /**
      * 获取存储的值
-     * @param {string} key 键名
-     * @param {*} defaultValue 默认值
-     * @returns {*}
+     * @param {string} key 键
+     * @param {any} defaultValue 默认值
+     * @returns {any}
      */
     static get(key, defaultValue = null) {
         try {
             const value = localStorage.getItem(key);
-            return value ? JSON.parse(value) : defaultValue;
+            if (value === null) return defaultValue;
+            return JSON.parse(value);
         } catch (error) {
-            console.error('获取本地存储失败:', error);
+            console.error('从本地存储获取数据失败:', error);
             return defaultValue;
         }
     }
 
     /**
      * 设置存储的值
-     * @param {string} key 键名
-     * @param {*} value 值
-     * @returns {boolean} 是否成功
+     * @param {string} key 键
+     * @param {any} value 值
      */
     static set(key, value) {
         try {
             localStorage.setItem(key, JSON.stringify(value));
-            return true;
         } catch (error) {
-            console.error('设置本地存储失败:', error);
-            return false;
+            console.error('保存数据到本地存储失败:', error);
         }
     }
 
     /**
-     * 移除存储的值
-     * @param {string} key 键名
+     * 删除存储的值
+     * @param {string} key 键
      */
     static remove(key) {
         try {
             localStorage.removeItem(key);
         } catch (error) {
-            console.error('移除本地存储失败:', error);
+            console.error('从本地存储删除数据失败:', error);
         }
     }
 
