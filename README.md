@@ -2,6 +2,9 @@
 
 一个在线笔记本应用，支持 Markdown 编辑和实时预览。
 
+## 站点
+[随记](https://jiezai.fun)
+
 ## 功能特点
 
 - Markdown 编辑和实时预览
