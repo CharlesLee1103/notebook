@@ -19,7 +19,16 @@ export class App {
         this.shortcuts = null;
         this.settings = null;
         this.history = null;
-        this.container = DOMUtils.get('.container');
+        
+        // 缓存常用DOM元素
+        this.domCache = {
+            container: DOMUtils.get('.container'),
+            fullscreenToolbar: DOMUtils.get('.fullscreen-toolbar'),
+            togglePreviewBtn: DOMUtils.get('#togglePreviewBtn'),
+            onlyPreviewBtn: DOMUtils.get('#onlyPreviewBtn'),
+            historyDotsContainer: DOMUtils.get('#historyDots'),
+            helpPanel: DOMUtils.get('#' + DOM_IDS.HELP_PANEL)
+        };
         
         // 移除初始加载类
         document.body.classList.remove('initial-load');
@@ -29,14 +38,39 @@ export class App {
         
         // 如果没有保存的视图模式，默认进入编辑全屏模式
         if (!savedViewMode) {
-            if (this.container && !this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
-                this.container.classList.add(CSS_CLASSES.FULLSCREEN);
-                this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+            if (this.domCache.container && !this.domCache.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+                this.domCache.container.classList.add(CSS_CLASSES.FULLSCREEN);
+                this.domCache.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
                 document.body.classList.add('fullscreen-mode');
             }
         }
         
+        // 预览更新防抖计时器
+        this.previewUpdateTimeout = null;
+        
+        // 创建绑定方法的引用，避免重复创建函数
+        this.boundTodoCallback = this.todoCallback.bind(this);
+        this.boundCloseHelpPanel = this.closeHelpPanel.bind(this);
+        
         this.init();
+    }
+
+    /**
+     * 待办项回调函数
+     */
+    todoCallback(lineIndex, checked) {
+        const doc = this.editor.editor.getDoc();
+        const line = doc.getLine(lineIndex);
+        if (/^\s*-\s*\[[ x]\]/.test(line)) {
+            const newLine = line.replace(
+                /(-\s*\[)[ x](\])/, 
+                `$1${checked ? 'x' : ' '}$2`
+            );
+            doc.replaceRange(newLine, 
+                {line: lineIndex, ch: 0},
+                {line: lineIndex, ch: line.length}
+            );
+        }
     }
 
     /**
@@ -45,28 +79,33 @@ export class App {
     init() {
         // 显示全屏工具栏
         this.showFullscreenToolbar();
-        if (DOMUtils.get('#togglePreviewBtn')) {
-            DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
+        if (this.domCache.togglePreviewBtn) {
+            this.domCache.togglePreviewBtn.innerText = '显示预览';
         }
-        // 初始化各个模块
+        
+        // 首先初始化核心功能：编辑器和预览
         this.editor = new Editor(DOM_IDS.EDITOR);
         this.preview = new PreviewManager(DOM_IDS.PREVIEW);
-        this.todo = new TodoManager();
-        this.shortcuts = new ShortcutManager();
-        this.settings = new SettingsManager(this.editor);
-        this.history = new HistoryManager();
-
-        // In init() 初始化后恢复视图模式
-        this.restoreViewMode();
         
-        // 注册快捷键
-        this.registerShortcuts();
+        // 恢复视图模式
+        this.restoreViewMode();
         
         // 绑定事件
         this.bindEvents();
         
-        // 渲染历史记录点
-        this.renderHistoryDots();
+        // 延迟加载非核心功能
+        setTimeout(() => {
+            this.todo = new TodoManager();
+            this.settings = new SettingsManager(this.editor);
+            this.history = new HistoryManager();
+            this.shortcuts = new ShortcutManager();
+            
+            // 注册快捷键
+            this.registerShortcuts();
+            
+            // 渲染历史记录点
+            this.renderHistoryDots();
+        }, 100);
     }
 
     /**
@@ -76,25 +115,23 @@ export class App {
         const savedViewMode = StorageUtils.get(STORAGE_KEYS.VIEW_MODE);
         if (!savedViewMode) return;
         
-        console.log('恢复视图模式:', savedViewMode);
-        
         // 清除所有视图相关的类
-        this.container.classList.remove(CSS_CLASSES.FULLSCREEN);
-        this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-        this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+        this.domCache.container.classList.remove(CSS_CLASSES.FULLSCREEN);
+        this.domCache.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
+        this.domCache.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
         document.body.classList.remove('fullscreen-mode');
         
         // 根据保存的模式设置视图
         if (savedViewMode.isFullscreen) {
-            this.container.classList.add(CSS_CLASSES.FULLSCREEN);
+            this.domCache.container.classList.add(CSS_CLASSES.FULLSCREEN);
             document.body.classList.add('fullscreen-mode');
             this.showFullscreenToolbar();
             
             if (savedViewMode.hidePreview) {
-                this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+                this.domCache.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
                 this.updateFullscreenButtons('循环视图模式', '显示预览');
             } else if (savedViewMode.onlyPreview) {
-                this.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
+                this.domCache.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
                 this.updateFullscreenButtons('循环视图模式', '显示编辑器');
             } else {
                 this.updateFullscreenButtons('循环视图模式', '隐藏预览');
@@ -108,47 +145,42 @@ export class App {
      * 渲染历史记录点
      */
     renderHistoryDots() {
-        const historyDotsContainer = DOMUtils.get('#historyDots');
-        console.log('历史记录容器元素:', historyDotsContainer);
+        if (!this.history) return;
         
-        if (!historyDotsContainer) {
-            console.error('找不到历史记录点容器');
-            return;
-        }
+        const historyDotsContainer = this.domCache.historyDotsContainer;
+        if (!historyDotsContainer) return;
 
-        historyDotsContainer.innerHTML = '';
         const count = this.history.getHistoryCount();
         const currentIndex = this.history.getCurrentIndex();
-
-        console.log('渲染历史记录点:', {
-            count,
-            currentIndex,
-            containerExists: !!historyDotsContainer,
-            containerChildren: historyDotsContainer.children.length
-        });
-
-        for (let i = 0; i < count; i++) {
-            console.log(`创建第 ${i + 1} 个历史记录点`);
-            const dot = DOMUtils.create('span', {
-                className: `history-dot${i === currentIndex ? ' active' : ''}`,
-                title: `历史记录 ${i + 1}`
-            });
-            
-            // 单独绑定点击事件
-            dot.addEventListener('click', (e) => {
-                console.log('历史记录点被点击11:', {
-                    index: i,
-                    event: e,
-                    target: e.target
+        const existingDots = historyDotsContainer.children.length;
+        
+        // 优化DOM操作：只更新变化的部分
+        if (existingDots > count) {
+            // 移除多余的点
+            while (historyDotsContainer.children.length > count) {
+                historyDotsContainer.removeChild(historyDotsContainer.lastChild);
+            }
+        } else if (existingDots < count) {
+            // 只添加新的点
+            const fragment = document.createDocumentFragment();
+            for (let i = existingDots; i < count; i++) {
+                const dot = DOMUtils.create('span', {
+                    className: `history-dot${i === currentIndex ? ' active' : ''}`,
+                    title: `历史记录 ${i + 1}`
                 });
-                this.loadHistory(i);
-            });
-            
-            historyDotsContainer.appendChild(dot);
-            console.log(`第 ${i + 1} 个历史记录点已添加到容器`);
+                
+                // 绑定点击事件
+                dot.addEventListener('click', () => this.loadHistory(i));
+                
+                fragment.appendChild(dot);
+            }
+            historyDotsContainer.appendChild(fragment);
         }
         
-        console.log('历史记录点渲染完成，当前容器子元素数量:', historyDotsContainer.children.length);
+        // 更新活动状态
+        Array.from(historyDotsContainer.children).forEach((dot, i) => {
+            dot.classList.toggle('active', i === currentIndex);
+        });
     }
 
     /**
@@ -156,41 +188,22 @@ export class App {
      * @param {number} index 
      */
     loadHistory(index) {
-        console.log('开始加载历史记录:', index);
+        if (!this.history) return;
         
         // 先保存当前内容
         const currentContent = this.editor.getContent();
         if (currentContent.trim()) {
-            console.log('保存当前内容到历史记录');
             this.history.addHistory(currentContent);
         }
         
         // 获取并加载历史记录
         const history = this.history.getHistory(index);
         if (history) {
-            console.log('成功获取历史记录:', history);
-            console.log('历史记录内容长度:', history.content.length);
-            console.log('历史记录内容预览:', history.content.substring(0, 100));
-            
             this.editor.editor.setValue(history.content);
             this.editor.save();
             
             // 更新历史记录点的显示
-            const dots = document.querySelectorAll('.history-dot');
-            dots.forEach((dot, i) => {
-                if (i === index) {
-                    dot.classList.add('active');
-                } else {
-                    dot.classList.remove('active');
-                }
-            });
-            
-            // 重新渲染历史记录点
             this.renderHistoryDots();
-            
-            console.log('历史记录加载完成');
-        } else {
-            console.error('获取历史记录失败:', index);
         }
     }
 
@@ -200,10 +213,8 @@ export class App {
     createNewNote() {
         // 保存当前内容到历史记录
         const currentContent = this.editor.getContent();
-        console.log('创建新文档，当前内容长度:', currentContent.length);
         
-        if (currentContent.trim()) {
-            console.log('保存当前内容到历史记录');
+        if (currentContent.trim() && this.history) {
             this.history.addHistory(currentContent);
         }
 
@@ -211,28 +222,30 @@ export class App {
         this.editor.editor.setValue('');
         this.editor.save();
         
-        // 移除所有点的active状态
-        const dots = document.querySelectorAll('.history-dot');
-        dots.forEach(dot => dot.classList.remove('active'));
-        
         // 更新历史记录点
-        this.renderHistoryDots();
-        
-        console.log('新文档创建完成');
+        if (this.history) {
+            this.renderHistoryDots();
+        }
     }
 
     /**
      * 注册快捷键
      */
     registerShortcuts() {
-        this.shortcuts.register('toggleTodoPanel', () => this.todo.togglePanel());
+        if (!this.shortcuts) return;
+        
+        this.shortcuts.register('toggleTodoPanel', () => this.todo && this.todo.togglePanel());
         this.shortcuts.register('quickAddTodo', () => {
-            this.todo.openPanel();
-            DOMUtils.get('#todoInput').focus();
+            if (this.todo) {
+                this.todo.openPanel();
+                DOMUtils.get('#todoInput')?.focus();
+            }
         });
         this.shortcuts.register('insertTodoList', () => {
-            const todoMarkdown = this.todo.getMarkdown();
-            this.editor.insertContent('\n' + todoMarkdown + '\n');
+            if (this.todo) {
+                const todoMarkdown = this.todo.getMarkdown();
+                this.editor.insertContent('\n' + todoMarkdown + '\n');
+            }
         });
         this.shortcuts.register('saveNote', () => this.editor.save());
         this.shortcuts.register('exportNote', () => this.exportNote());
@@ -247,42 +260,36 @@ export class App {
      * 循环切换显示模式: 双栏 -> 仅编辑 -> 仅预览 -> 双栏
      */
     toggleViewMode() {
-        if (!this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+        if (!this.domCache.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
             // 如果不在全屏模式，先进入全屏模式
             this.enterFullscreen();
             return;
         }
 
         // 保存编辑器位置
-        if (!this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
+        if (!this.domCache.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
             this.editor.lastCursor = this.editor.editor.getCursor();
         }
 
         // 三种模式之间循环切换
-        if (!this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW) && 
-            !this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
+        if (!this.domCache.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW) && 
+            !this.domCache.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
             // 当前是双栏模式，切换到仅编辑模式
-            this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-            this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+            this.domCache.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+            this.domCache.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
             this.updateFullscreenButtons('循环视图模式', '显示预览');
             setTimeout(() => this.editor.editor.focus(), 30);
-            
-            // 保存当前视图模式
-            this.saveViewMode();
-        } else if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
+        } else if (this.domCache.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
             // 当前是仅编辑模式，切换到仅预览模式
-            this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-            this.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
+            this.domCache.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
+            this.domCache.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
             this.updateFullscreenButtons('循环视图模式', '显示编辑器');
             
             // 更新预览内容
             this.updatePreviewContent();
-            
-            // 保存当前视图模式
-            this.saveViewMode();
         } else {
             // 当前是仅预览模式，切换回双栏模式
-            this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+            this.domCache.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
             this.updateFullscreenButtons('循环视图模式', '隐藏预览');
             
             // 恢复编辑器光标位置
@@ -292,10 +299,10 @@ export class App {
                     this.editor.editor.focus();
                 }, 30);
             }
-            
-            // 保存当前视图模式
-            this.saveViewMode();
         }
+        
+        // 保存当前视图模式
+        this.saveViewMode();
     }
     
     /**
@@ -304,22 +311,7 @@ export class App {
     updatePreviewContent() {
         const content = this.editor.getContent();
         if (content) {
-            console.log('视图模式变化：更新预览内容');
-            this.preview.update(content, (lineIndex, checked) => {
-                console.log('视图模式变化：待办项回调被调用', lineIndex, checked);
-                const doc = this.editor.editor.getDoc();
-                const line = doc.getLine(lineIndex);
-                if (/^\s*-\s*\[[ x]\]/.test(line)) {
-                    const newLine = line.replace(
-                        /(-\s*\[)[ x](\])/, 
-                        `$1${checked ? 'x' : ' '}$2`
-                    );
-                    doc.replaceRange(newLine, 
-                        {line: lineIndex, ch: 0},
-                        {line: lineIndex, ch: line.length}
-                    );
-                }
-            });
+            this.preview.update(content, this.boundTodoCallback);
         }
     }
 
@@ -327,8 +319,6 @@ export class App {
      * 绑定事件
      */
     bindEvents() {
-        console.log('App - 开始绑定事件');
-        
         // 绑定工具栏按钮事件
         DOMUtils.on(DOMUtils.get('#newNoteBtn'), 'click', () => {
             this.createNewNote();
@@ -343,7 +333,7 @@ export class App {
         });
         
         DOMUtils.on(DOMUtils.get('#todoBtn'), 'click', () => {
-            this.todo.togglePanel();
+            if (this.todo) this.todo.togglePanel();
         });
         
         DOMUtils.on(DOMUtils.get('#fullscreenBtn'), 'click', () => {
@@ -371,41 +361,18 @@ export class App {
             });
         }
         
-        // 编辑器内容变化时更新预览
+        // 编辑器内容变化时更新预览（添加防抖）
         this.editor.editor.on('change', () => {
-            console.log('App - 编辑器内容变化事件触发');
-            const content = this.editor.getContent();
-            
-            console.log('App - 准备更新预览内容', '内容长度:', content.length);
-            this.preview.update(content, (lineIndex, checked) => {
-                console.log('App - 待办项回调被调用:', lineIndex, checked);
-                const doc = this.editor.editor.getDoc();
-                const line = doc.getLine(lineIndex);
-                console.log('App - 获取到行内容:', line);
-                
-                // 确保匹配到待办项格式并替换
-                if (/^\s*-\s*\[[ x]\]/.test(line)) {
-                    const newLine = line.replace(
-                        /(-\s*\[)[ x](\])/, 
-                        `$1${checked ? 'x' : ' '}$2`
-                    );
-                    console.log('App - 替换行内容:', '从', line, '到', newLine);
-                    
-                    doc.replaceRange(newLine, 
-                        {line: lineIndex, ch: 0},
-                        {line: lineIndex, ch: line.length}
-                    );
-                    console.log('App - 完成编辑器内容更新');
-                } else {
-                    console.warn('App - 无法匹配待办项格式:', line);
-                }
-            });
+            clearTimeout(this.previewUpdateTimeout);
+            this.previewUpdateTimeout = setTimeout(() => {
+                const content = this.editor.getContent();
+                this.preview.update(content, this.boundTodoCallback);
+            }, 300);
         });
 
         // 手动添加编辑器 Cmd+Enter 事件处理
         this.editor.editor.on('keydown', (cm, e) => {
             if (e.key === 'Enter' && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-                console.log('CodeMirror内部捕获到 Cmd+Enter');
                 this.toggleViewMode();
                 e.preventDefault();
                 e.stopPropagation();
@@ -417,7 +384,6 @@ export class App {
         DOMUtils.on(document, 'keydown', (e) => {
             // 处理Cmd+Enter全局快捷键
             if (e.key === 'Enter' && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-                console.log('全局捕获到 Cmd+Enter');
                 this.toggleViewMode();
                 e.preventDefault();
                 return false;
@@ -425,7 +391,6 @@ export class App {
             
             // 处理Ctrl+Enter全局/非全局切换
             if (e.key === 'Enter' && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-                console.log('全局捕获到 Ctrl+Enter');
                 this.toggleFullscreen();
                 e.preventDefault();
                 return false;
@@ -433,8 +398,7 @@ export class App {
             
             // ESC键处理
             if (e.key === 'Escape' && !this.editor.isVimMode) {
-                const container = this.container;
-                if (container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+                if (this.domCache.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
                     this.exitFullscreen();
                 }
             }
@@ -457,49 +421,30 @@ export class App {
         }
         
         // 初始化时也要更新一次预览
-        console.log('App - 初始化时触发预览更新');
         const content = this.editor.getContent();
         if (content) {
-            console.log('App - 首次更新预览内容');
-            this.preview.update(content, (lineIndex, checked) => {
-                console.log('App - 首次更新中的待办项回调被调用:', lineIndex, checked);
-                const doc = this.editor.editor.getDoc();
-                const line = doc.getLine(lineIndex);
-                if (/^\s*-\s*\[[ x]\]/.test(line)) {
-                    const newLine = line.replace(
-                        /(-\s*\[)[ x](\])/, 
-                        `$1${checked ? 'x' : ' '}$2`
-                    );
-                    doc.replaceRange(newLine, 
-                        {line: lineIndex, ch: 0},
-                        {line: lineIndex, ch: line.length}
-                    );
-                    console.log('App - 首次更新完成待办项状态更新');
-                }
-            });
+            this.preview.update(content, this.boundTodoCallback);
         }
         
         // 绑定全屏工具栏按钮事件
-        DOMUtils.on(DOMUtils.get('#togglePreviewBtn'), 'click', () => {
+        DOMUtils.on(this.domCache.togglePreviewBtn, 'click', () => {
             this.togglePreview();
         });
         
-        DOMUtils.on(DOMUtils.get('#onlyPreviewBtn'), 'click', () => {
+        DOMUtils.on(this.domCache.onlyPreviewBtn, 'click', () => {
             this.toggleViewMode();
         });
         
         DOMUtils.on(DOMUtils.get('#exitFullscreenBtn'), 'click', () => {
             this.exitFullscreen();
         });
-        
-        console.log('App - 事件绑定完成');
     }
 
     /**
      * 切换全屏模式
      */
     toggleFullscreen() {
-        if (!this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+        if (!this.domCache.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
             this.enterFullscreen();
         } else {
             this.exitFullscreen();
@@ -510,7 +455,7 @@ export class App {
      * 进入全屏模式
      */
     enterFullscreen() {
-        this.container.classList.add(CSS_CLASSES.FULLSCREEN);
+        this.domCache.container.classList.add(CSS_CLASSES.FULLSCREEN);
         document.body.classList.add('fullscreen-mode');
         this.showFullscreenToolbar();
         
@@ -521,22 +466,7 @@ export class App {
         const content = this.editor.getContent();
         if (content) {
             setTimeout(() => {
-                console.log('全屏模式：更新预览内容');
-                this.preview.update(content, (lineIndex, checked) => {
-                    console.log('全屏模式：待办项回调被调用', lineIndex, checked);
-                    const doc = this.editor.editor.getDoc();
-                    const line = doc.getLine(lineIndex);
-                    if (/^\s*-\s*\[[ x]\]/.test(line)) {
-                        const newLine = line.replace(
-                            /(-\s*\[)[ x](\])/, 
-                            `$1${checked ? 'x' : ' '}$2`
-                        );
-                        doc.replaceRange(newLine, 
-                            {line: lineIndex, ch: 0},
-                            {line: lineIndex, ch: line.length}
-                        );
-                    }
-                });
+                this.preview.update(content, this.boundTodoCallback);
             }, 300);
         }
     }
@@ -545,9 +475,9 @@ export class App {
      * 退出全屏模式
      */
     exitFullscreen() {
-        this.container.classList.remove(CSS_CLASSES.FULLSCREEN);
-        this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-        this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+        this.domCache.container.classList.remove(CSS_CLASSES.FULLSCREEN);
+        this.domCache.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
+        this.domCache.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
         document.body.classList.remove('fullscreen-mode');
         this.removeFullscreenToolbar();
         
@@ -558,22 +488,7 @@ export class App {
         const content = this.editor.getContent();
         if (content) {
             setTimeout(() => {
-                console.log('退出全屏模式：更新预览内容');
-                this.preview.update(content, (lineIndex, checked) => {
-                    console.log('退出全屏模式：待办项回调被调用', lineIndex, checked);
-                    const doc = this.editor.editor.getDoc();
-                    const line = doc.getLine(lineIndex);
-                    if (/^\s*-\s*\[[ x]\]/.test(line)) {
-                        const newLine = line.replace(
-                            /(-\s*\[)[ x](\])/, 
-                            `$1${checked ? 'x' : ' '}$2`
-                        );
-                        doc.replaceRange(newLine, 
-                            {line: lineIndex, ch: 0},
-                            {line: lineIndex, ch: line.length}
-                        );
-                    }
-                });
+                this.preview.update(content, this.boundTodoCallback);
             }, 300);
         }
     }
@@ -583,12 +498,11 @@ export class App {
      */
     saveViewMode() {
         const viewMode = {
-            isFullscreen: this.container.classList.contains(CSS_CLASSES.FULLSCREEN),
-            hidePreview: this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW),
-            onlyPreview: this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)
+            isFullscreen: this.domCache.container.classList.contains(CSS_CLASSES.FULLSCREEN),
+            hidePreview: this.domCache.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW),
+            onlyPreview: this.domCache.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)
         };
         
-        console.log('保存视图模式:', viewMode);
         StorageUtils.set(STORAGE_KEYS.VIEW_MODE, viewMode);
     }
 
@@ -596,9 +510,8 @@ export class App {
      * 显示全屏工具栏
      */
     showFullscreenToolbar() {
-        const toolbar = DOMUtils.get('.fullscreen-toolbar');
-        if (toolbar) {
-            toolbar.style.display = 'flex';
+        if (this.domCache.fullscreenToolbar) {
+            this.domCache.fullscreenToolbar.style.display = 'flex';
         }
     }
 
@@ -606,9 +519,8 @@ export class App {
      * 移除全屏工具栏
      */
     removeFullscreenToolbar() {
-        const toolbar = DOMUtils.get('.fullscreen-toolbar');
-        if (toolbar) {
-            toolbar.style.display = 'none';
+        if (this.domCache.fullscreenToolbar) {
+            this.domCache.fullscreenToolbar.style.display = 'none';
         }
     }
 
@@ -616,10 +528,12 @@ export class App {
      * 切换预览显示
      */
     togglePreview() {
-        if (this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
+        if (this.domCache.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
             // 如果当前是仅预览模式，切换到双栏模式
-            this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
-            DOMUtils.get('#togglePreviewBtn').innerText = '隐藏预览';
+            this.domCache.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+            if (this.domCache.togglePreviewBtn) {
+                this.domCache.togglePreviewBtn.innerText = '隐藏预览';
+            }
             
             // 保存当前视图模式
             this.saveViewMode();
@@ -631,17 +545,21 @@ export class App {
                     this.editor.editor.setCursor(this.editor.lastCursor);
                 }
             }, 30);
-        } else if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
+        } else if (this.domCache.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
             // 如果当前是仅编辑模式，显示预览（切换到双栏模式）
-            this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-            DOMUtils.get('#togglePreviewBtn').innerText = '隐藏预览';
+            this.domCache.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
+            if (this.domCache.togglePreviewBtn) {
+                this.domCache.togglePreviewBtn.innerText = '隐藏预览';
+            }
             
             // 保存当前视图模式
             this.saveViewMode();
         } else {
             // 当前是双栏模式，隐藏预览（切换到仅编辑模式）
-            this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-            DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
+            this.domCache.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+            if (this.domCache.togglePreviewBtn) {
+                this.domCache.togglePreviewBtn.innerText = '显示预览';
+            }
             
             // 保存当前视图模式
             this.saveViewMode();
@@ -657,10 +575,12 @@ export class App {
      * @param {string} toggleBtnText 
      */
     updateFullscreenButtons(onlyBtnText, toggleBtnText) {
-        const onlyBtn = DOMUtils.get('#onlyPreviewBtn');
-        const toggleBtn = DOMUtils.get('#togglePreviewBtn');
-        if (onlyBtn) onlyBtn.innerText = onlyBtnText;
-        if (toggleBtn) toggleBtn.innerText = toggleBtnText;
+        if (this.domCache.onlyPreviewBtn) {
+            this.domCache.onlyPreviewBtn.innerText = onlyBtnText;
+        }
+        if (this.domCache.togglePreviewBtn) {
+            this.domCache.togglePreviewBtn.innerText = toggleBtnText;
+        }
     }
 
     /**
@@ -684,11 +604,8 @@ export class App {
      * 切换帮助面板显示/隐藏
      */
     toggleHelpPanel() {
-        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
-        if (!helpPanel) {
-            console.error('找不到帮助面板元素');
-            return;
-        }
+        const helpPanel = this.domCache.helpPanel;
+        if (!helpPanel) return;
         
         if (helpPanel.style.display === 'block') {
             // 关闭帮助面板
@@ -703,7 +620,7 @@ export class App {
      * 打开帮助面板
      */
     openHelpPanel() {
-        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
+        const helpPanel = this.domCache.helpPanel;
         if (!helpPanel) return;
         
         helpPanel.style.display = 'block';
@@ -715,9 +632,9 @@ export class App {
         const closeBtn = DOMUtils.get('#closeHelpBtn');
         if (closeBtn) {
             // 先移除旧的事件监听，避免重复绑定
-            closeBtn.removeEventListener('click', this.closeHelpPanel.bind(this));
+            closeBtn.removeEventListener('click', this.boundCloseHelpPanel);
             // 添加新的事件监听
-            closeBtn.addEventListener('click', this.closeHelpPanel.bind(this));
+            closeBtn.addEventListener('click', this.boundCloseHelpPanel);
         }
         
         // 添加ESC键监听
@@ -741,7 +658,7 @@ export class App {
      * 关闭帮助面板
      */
     closeHelpPanel() {
-        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
+        const helpPanel = this.domCache.helpPanel;
         if (!helpPanel) return;
         
         helpPanel.classList.remove(CSS_CLASSES.SHOW);
