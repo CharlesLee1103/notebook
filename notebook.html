@@ -179,6 +179,51 @@
         <button id="exportImgBtn">导出图片</button>
     </div>
 
+    <div class="help-panel" id="helpPanel" style="display: none;">
+        <div class="help-header">
+            <h3>使用帮助</h3>
+            <button class="close-btn" id="closeHelpBtn">&times;</button>
+        </div>
+        <div class="help-content">
+            <section>
+                <h4>快捷键</h4>
+                <table class="shortcut-table">
+                    <tr>
+                        <td>Ctrl+Enter</td>
+                        <td>切换全屏/非全屏模式</td>
+                    </tr>
+                    <tr>
+                        <td>Cmd+Enter</td>
+                        <td>循环切换视图模式</td>
+                    </tr>
+                    <tr>
+                        <td>Ctrl+S</td>
+                        <td>保存笔记</td>
+                    </tr>
+                    <tr>
+                        <td>Alt+Shift+T</td>
+                        <td>显示/隐藏待办面板</td>
+                    </tr>
+                </table>
+            </section>
+            <section>
+                <h4>Markdown 语法</h4>
+                <div class="markdown-help">
+                    <p># 标题1</p>
+                    <p>## 标题2</p>
+                    <p>**粗体**</p>
+                    <p>*斜体*</p>
+                    <p>`代码`</p>
+                    <p>- [ ] 待办项</p>
+                    <p>- [x] 已完成项</p>
+                    <p>[链接](URL)</p>
+                    <p>![图片](URL)</p>
+                    <p>> 引用文本</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
     <button class="vim-toggle" id="vimToggle">Vim: Off</button>
 </body>
 

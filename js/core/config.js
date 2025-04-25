@@ -53,7 +53,8 @@ export const STORAGE_KEYS = {
     SHORTCUTS: 'shortcuts',
     TODOS: 'todos',
     NOTE_CONTENT: 'noteContent',
-    VIM_MODE: 'vimMode'
+    VIM_MODE: 'vimMode',
+    VIEW_MODE: 'viewMode'
 };
 
 // CSS类名常量

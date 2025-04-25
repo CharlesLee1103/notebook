@@ -14,6 +14,19 @@ export class PreviewManager {
         // 添加全局回调函数用于待办项点击
         window.toggleTodoItem = this.toggleTodoItem.bind(this);
         
+        // 加载自定义字体
+        const fontFace = new FontFace('新叶念体', 'url(../../font/新叶念体.otf)');
+        fontFace.load().then((loadedFace) => {
+            document.fonts.add(loadedFace);
+            console.log('字体加载成功：新叶念体');
+            // 添加字体样式到预览元素
+            if (this.previewElement) {
+                this.previewElement.style.fontFamily = "'新叶念体', sans-serif";
+            }
+        }).catch((error) => {
+            console.error('字体加载失败：', error);
+        });
+        
         this.setupMarked();
     }
     
@@ -192,6 +205,7 @@ export class PreviewManager {
      * @param {Function} onTaskItemClick 待办项点击回调
      */
     update(content, onTaskItemClick) {
+        content=content.replace(/\\\[/g, '$$$').replace(/\\\]/g, '$$$');
         console.log('更新预览内容开始', '回调函数存在:', !!onTaskItemClick);
         
         // 保存回调函数

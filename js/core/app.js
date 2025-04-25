@@ -5,7 +5,8 @@ import { ShortcutManager } from '../modules/shortcuts.js';
 import { SettingsManager } from '../modules/settings.js';
 import { HistoryManager } from '../modules/history.js';
 import { DOMUtils } from '../utils/dom.js';
-import { CSS_CLASSES, DOM_IDS } from './config.js';
+import { CSS_CLASSES, DOM_IDS, STORAGE_KEYS } from './config.js';
+import { StorageUtils } from '../utils/storage.js';
 
 /**
  * 应用主类
@@ -23,12 +24,18 @@ export class App {
         // 移除初始加载类
         document.body.classList.remove('initial-load');
         
-        // 立即进入编辑全屏模式
-        if (this.container && !this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
-            this.container.classList.add(CSS_CLASSES.FULLSCREEN);
-            this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-            document.body.classList.add('fullscreen-mode');
+        // 从本地存储恢复视图模式
+        const savedViewMode = StorageUtils.get(STORAGE_KEYS.VIEW_MODE);
+        
+        // 如果没有保存的视图模式，默认进入编辑全屏模式
+        if (!savedViewMode) {
+            if (this.container && !this.container.classList.contains(CSS_CLASSES.FULLSCREEN)) {
+                this.container.classList.add(CSS_CLASSES.FULLSCREEN);
+                this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+                document.body.classList.add('fullscreen-mode');
+            }
         }
+        
         this.init();
     }
 
@@ -49,7 +56,9 @@ export class App {
         this.settings = new SettingsManager(this.editor);
         this.history = new HistoryManager();
 
-
+        // In init() 初始化后恢复视图模式
+        this.restoreViewMode();
+        
         // 注册快捷键
         this.registerShortcuts();
         
@@ -58,7 +67,41 @@ export class App {
         
         // 渲染历史记录点
         this.renderHistoryDots();
+    }
+
+    /**
+     * 恢复视图模式
+     */
+    restoreViewMode() {
+        const savedViewMode = StorageUtils.get(STORAGE_KEYS.VIEW_MODE);
+        if (!savedViewMode) return;
         
+        console.log('恢复视图模式:', savedViewMode);
+        
+        // 清除所有视图相关的类
+        this.container.classList.remove(CSS_CLASSES.FULLSCREEN);
+        this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
+        this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+        document.body.classList.remove('fullscreen-mode');
+        
+        // 根据保存的模式设置视图
+        if (savedViewMode.isFullscreen) {
+            this.container.classList.add(CSS_CLASSES.FULLSCREEN);
+            document.body.classList.add('fullscreen-mode');
+            this.showFullscreenToolbar();
+            
+            if (savedViewMode.hidePreview) {
+                this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
+                this.updateFullscreenButtons('循环视图模式', '显示预览');
+            } else if (savedViewMode.onlyPreview) {
+                this.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
+                this.updateFullscreenButtons('循环视图模式', '显示编辑器');
+            } else {
+                this.updateFullscreenButtons('循环视图模式', '隐藏预览');
+            }
+        } else {
+            this.removeFullscreenToolbar();
+        }
     }
 
     /**
@@ -221,31 +264,37 @@ export class App {
             // 当前是双栏模式，切换到仅编辑模式
             this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
             this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
-            this.updateFullscreenButtons('仅预览全屏', '显示预览');
+            this.updateFullscreenButtons('循环视图模式', '显示预览');
             setTimeout(() => this.editor.editor.focus(), 30);
+            
+            // 保存当前视图模式
+            this.saveViewMode();
         } else if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
             // 当前是仅编辑模式，切换到仅预览模式
             this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
             this.container.classList.add(CSS_CLASSES.ONLY_PREVIEW);
-            this.updateFullscreenButtons('恢复双栏', '隐藏预览');
+            this.updateFullscreenButtons('循环视图模式', '显示编辑器');
             
-            // 更新预览并确保待办项可点击
+            // 更新预览内容
             this.updatePreviewContent();
+            
+            // 保存当前视图模式
+            this.saveViewMode();
         } else {
-            // 当前是仅预览模式，切换到双栏模式
+            // 当前是仅预览模式，切换回双栏模式
             this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
-            this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-            this.updateFullscreenButtons('仅预览全屏', '隐藏预览');
+            this.updateFullscreenButtons('循环视图模式', '隐藏预览');
             
-            // 更新预览并确保待办项可点击
-            this.updatePreviewContent();
+            // 恢复编辑器光标位置
+            if (this.editor.lastCursor) {
+                setTimeout(() => {
+                    this.editor.editor.setCursor(this.editor.lastCursor);
+                    this.editor.editor.focus();
+                }, 30);
+            }
             
-            setTimeout(() => {
-                this.editor.editor.focus();
-                if (this.editor.lastCursor) {
-                    this.editor.setCursor(this.editor.lastCursor);
-                }
-            }, 30);
+            // 保存当前视图模式
+            this.saveViewMode();
         }
     }
     
@@ -299,6 +348,11 @@ export class App {
         
         DOMUtils.on(DOMUtils.get('#fullscreenBtn'), 'click', () => {
             this.toggleFullscreen();
+        });
+        
+        // 帮助按钮点击事件
+        DOMUtils.on(DOMUtils.get('#helpBtn'), 'click', () => {
+            this.toggleHelpPanel();
         });
         
         // 文件导入处理
@@ -460,6 +514,9 @@ export class App {
         document.body.classList.add('fullscreen-mode');
         this.showFullscreenToolbar();
         
+        // 保存当前视图模式
+        this.saveViewMode();
+        
         // 进入全屏时，更新一次预览内容以确保待办项可点击
         const content = this.editor.getContent();
         if (content) {
@@ -494,6 +551,9 @@ export class App {
         document.body.classList.remove('fullscreen-mode');
         this.removeFullscreenToolbar();
         
+        // 保存当前视图模式
+        this.saveViewMode();
+        
         // 退出全屏时，更新一次预览内容以确保待办项可点击
         const content = this.editor.getContent();
         if (content) {
@@ -516,6 +576,20 @@ export class App {
                 });
             }, 300);
         }
+    }
+
+    /**
+     * 保存当前视图模式
+     */
+    saveViewMode() {
+        const viewMode = {
+            isFullscreen: this.container.classList.contains(CSS_CLASSES.FULLSCREEN),
+            hidePreview: this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW),
+            onlyPreview: this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)
+        };
+        
+        console.log('保存视图模式:', viewMode);
+        StorageUtils.set(STORAGE_KEYS.VIEW_MODE, viewMode);
     }
 
     /**
@@ -542,13 +616,38 @@ export class App {
      * 切换预览显示
      */
     togglePreview() {
-        const toggleBtn = DOMUtils.get('#togglePreviewBtn');
-        if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
+        if (this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
+            // 如果当前是仅预览模式，切换到双栏模式
+            this.container.classList.remove(CSS_CLASSES.ONLY_PREVIEW);
+            DOMUtils.get('#togglePreviewBtn').innerText = '隐藏预览';
+            
+            // 保存当前视图模式
+            this.saveViewMode();
+            
+            // 恢复焦点到编辑器
+            setTimeout(() => {
+                this.editor.editor.focus();
+                if (this.editor.lastCursor) {
+                    this.editor.editor.setCursor(this.editor.lastCursor);
+                }
+            }, 30);
+        } else if (this.container.classList.contains(CSS_CLASSES.HIDE_PREVIEW)) {
+            // 如果当前是仅编辑模式，显示预览（切换到双栏模式）
             this.container.classList.remove(CSS_CLASSES.HIDE_PREVIEW);
-            if (toggleBtn) toggleBtn.innerText = '隐藏预览';
-        } else if (!this.container.classList.contains(CSS_CLASSES.ONLY_PREVIEW)) {
+            DOMUtils.get('#togglePreviewBtn').innerText = '隐藏预览';
+            
+            // 保存当前视图模式
+            this.saveViewMode();
+        } else {
+            // 当前是双栏模式，隐藏预览（切换到仅编辑模式）
             this.container.classList.add(CSS_CLASSES.HIDE_PREVIEW);
-            if (toggleBtn) toggleBtn.innerText = '显示预览';
+            DOMUtils.get('#togglePreviewBtn').innerText = '显示预览';
+            
+            // 保存当前视图模式
+            this.saveViewMode();
+            
+            // 聚焦到编辑器
+            setTimeout(() => this.editor.editor.focus(), 30);
         }
     }
 
@@ -579,5 +678,79 @@ export class App {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    /**
+     * 切换帮助面板显示/隐藏
+     */
+    toggleHelpPanel() {
+        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
+        if (!helpPanel) {
+            console.error('找不到帮助面板元素');
+            return;
+        }
+        
+        if (helpPanel.style.display === 'block') {
+            // 关闭帮助面板
+            this.closeHelpPanel();
+        } else {
+            // 打开帮助面板
+            this.openHelpPanel();
+        }
+    }
+    
+    /**
+     * 打开帮助面板
+     */
+    openHelpPanel() {
+        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
+        if (!helpPanel) return;
+        
+        helpPanel.style.display = 'block';
+        // 强制重排
+        helpPanel.offsetHeight;
+        helpPanel.classList.add(CSS_CLASSES.SHOW);
+        
+        // 绑定关闭按钮事件
+        const closeBtn = DOMUtils.get('#closeHelpBtn');
+        if (closeBtn) {
+            // 先移除旧的事件监听，避免重复绑定
+            closeBtn.removeEventListener('click', this.closeHelpPanel.bind(this));
+            // 添加新的事件监听
+            closeBtn.addEventListener('click', this.closeHelpPanel.bind(this));
+        }
+        
+        // 添加ESC键监听
+        document.addEventListener('keydown', this.handleHelpPanelKeydown = (e) => {
+            if (e.key === 'Escape') {
+                this.closeHelpPanel();
+            }
+        });
+        
+        // 点击面板外关闭
+        document.addEventListener('click', this.handleOutsideClick = (e) => {
+            if (helpPanel.style.display === 'block' && 
+                !helpPanel.contains(e.target) && 
+                !DOMUtils.get('#helpBtn').contains(e.target)) {
+                this.closeHelpPanel();
+            }
+        }, true);
+    }
+    
+    /**
+     * 关闭帮助面板
+     */
+    closeHelpPanel() {
+        const helpPanel = DOMUtils.get('#' + DOM_IDS.HELP_PANEL);
+        if (!helpPanel) return;
+        
+        helpPanel.classList.remove(CSS_CLASSES.SHOW);
+        setTimeout(() => {
+            helpPanel.style.display = 'none';
+        }, 300);
+        
+        // 移除事件监听
+        document.removeEventListener('keydown', this.handleHelpPanelKeydown);
+        document.removeEventListener('click', this.handleOutsideClick, true);
     }
 } 
