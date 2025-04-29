@@ -16,9 +16,15 @@ export class SettingsManager {
         this.autoSaveToggle = DOMUtils.get('#autoSaveToggle');
         this.vimModeToggle = DOMUtils.get('#vimModeToggle');
         this.fontSizeInput = DOMUtils.get('#fontSizeInput');
+        this.fontFamilySelect = DOMUtils.get('#fontFamilySelect');
+        this.syncFontToggle = DOMUtils.get('#syncFontToggle');
         
         this.bindEvents();
-        this.loadSettings();
+        
+        // 确保编辑器完全初始化后再加载设置
+        setTimeout(() => {
+            this.loadSettings();
+        }, 100);
     }
     
     /**
@@ -44,6 +50,27 @@ export class SettingsManager {
                 this.closePanel();
             }
         });
+        
+        // 当页面完全加载后，再次应用字体设置，确保编辑器已初始化
+        if (document.readyState === 'loading') {
+            DOMUtils.on(document, 'DOMContentLoaded', () => {
+                console.log('DOM加载完成，重新应用字体设置');
+                // 延迟执行，确保编辑器完全初始化
+                setTimeout(() => {
+                    const fontFamily = this.fontFamilySelect ? this.fontFamilySelect.value : StorageUtils.get('fontFamily') || '新叶念体';
+                    const syncFont = this.syncFontToggle ? this.syncFontToggle.checked : StorageUtils.get('syncFont') || false;
+                    this.applyFontFamily(fontFamily, syncFont);
+                }, 500);
+            });
+        } else {
+            // 如果DOM已加载完成，则直接延迟执行
+            setTimeout(() => {
+                console.log('DOM已加载，直接应用字体设置');
+                const fontFamily = this.fontFamilySelect ? this.fontFamilySelect.value : StorageUtils.get('fontFamily') || '新叶念体';
+                const syncFont = this.syncFontToggle ? this.syncFontToggle.checked : StorageUtils.get('syncFont') || false;
+                this.applyFontFamily(fontFamily, syncFont);
+            }, 500);
+        }
     }
     
     /**
@@ -82,6 +109,21 @@ export class SettingsManager {
         const fontSize = StorageUtils.get('fontSize') || 15;
         this.fontSizeInput.value = fontSize;
         this.applyFontSize(fontSize);
+        
+        // 加载字体设置
+        const fontFamily = StorageUtils.get('fontFamily') || '新叶念体';
+        if (this.fontFamilySelect) {
+            this.fontFamilySelect.value = fontFamily;
+        }
+        
+        // 加载同步字体设置
+        const syncFont = StorageUtils.get('syncFont') || false;
+        if (this.syncFontToggle) {
+            this.syncFontToggle.checked = syncFont;
+        }
+        
+        // 应用字体设置，传递同步标志
+        this.applyFontFamily(fontFamily, syncFont);
     }
     
     /**
@@ -111,6 +153,18 @@ export class SettingsManager {
         StorageUtils.set('fontSize', fontSize);
         this.applyFontSize(fontSize);
         
+        // 保存字体设置
+        if (this.fontFamilySelect) {
+            const fontFamily = this.fontFamilySelect.value;
+            StorageUtils.set('fontFamily', fontFamily);
+            
+            // 保存同步字体设置
+            const syncFont = this.syncFontToggle ? this.syncFontToggle.checked : false;
+            StorageUtils.set('syncFont', syncFont);
+            
+            this.applyFontFamily(fontFamily, syncFont);
+        }
+        
         // 关闭设置面板
         this.closePanel();
         
@@ -132,6 +186,16 @@ export class SettingsManager {
         this.fontSizeInput.value = 15;
         this.applyFontSize(15);
         
+        // 重置字体
+        if (this.fontFamilySelect) {
+            this.fontFamilySelect.value = '新叶念体';
+        }
+        
+        // 重置同步字体设置
+        if (this.syncFontToggle) {
+            this.syncFontToggle.checked = false;
+        }
+        
         // 保存设置
         this.saveSettings();
     }
@@ -146,7 +210,63 @@ export class SettingsManager {
         cm.getWrapperElement().style.fontSize = `${size}px`;
         cm.refresh();
         
+        // 应用到预览区域 - 预览区域字体比编辑器大1px
+        const previewElement = DOMUtils.get('#preview');
+        if (previewElement) {
+            previewElement.style.fontSize = `${size + 1}px`;
+        }
+    }
+    
+    /**
+     * 应用字体
+     * @param {string} fontFamily 字体名称
+     * @param {boolean} syncToEditor 是否同步到编辑区
+     */
+    applyFontFamily(fontFamily, syncToEditor) {
+        console.log(`应用字体 ${fontFamily}，同步到编辑区: ${syncToEditor}`);
+        
         // 应用到预览区域
-        DOMUtils.get('#preview').style.fontSize = `${size}px`;
+        const previewElement = DOMUtils.get('#preview');
+        if (previewElement) {
+            if (fontFamily === 'default') {
+                // 使用系统默认字体
+                previewElement.style.fontFamily = `-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif`;
+            } else {
+                // 使用自定义字体
+                previewElement.style.fontFamily = `'${fontFamily}', sans-serif`;
+            }
+            
+            // 如果需要同步到编辑区
+            if (this.editor && this.editor.editor) {
+                const cm = this.editor.editor;
+                const wrapper = cm.getWrapperElement();
+                
+                if (syncToEditor) {
+                    console.log(`正在同步字体 ${fontFamily} 到编辑区`);
+                    // 添加自定义字体类
+                    wrapper.classList.add('custom-font');
+                    
+                    if (fontFamily === 'default') {
+                        wrapper.style.fontFamily = `-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", monospace`;
+                    } else {
+                        wrapper.style.fontFamily = `'${fontFamily}', monospace`;
+                    }
+                } else {
+                    // 恢复默认字体
+                    wrapper.classList.remove('custom-font');
+                    wrapper.style.fontFamily = `"JetBrains Mono", monospace`;
+                }
+                
+                cm.refresh();
+            } else {
+                console.log('编辑器未准备好，无法应用字体');
+            }
+            
+            // 触发自定义事件，通知PreviewManager字体已更改
+            const event = new CustomEvent('fontFamilyChanged', { 
+                detail: { fontFamily } 
+            });
+            document.dispatchEvent(event);
+        }
     }
 } 

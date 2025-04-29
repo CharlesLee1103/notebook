@@ -90,6 +90,23 @@ body {
     padding: 20px;
 }
 
+/* 自定义字体应用到编辑区的调整 */
+.CodeMirror.custom-font {
+    font-weight: normal; /* 确保不会出现过粗的字体 */
+    letter-spacing: 0.5px; /* 适当增加字间距，提高可读性 */
+}
+
+.CodeMirror.custom-font .cm-header {
+    font-weight: bold;
+}
+
+/* 确保代码样式在自定义字体下仍然清晰可读 */
+.CodeMirror.custom-font .cm-comment,
+.CodeMirror.custom-font .cm-string,
+.CodeMirror.custom-font .cm-variable-2 {
+    font-style: normal;
+}
+
 .cm-header {
     color: var(--primary-color) !important;
     font-weight: 600;
@@ -100,7 +117,8 @@ body {
     padding: 20px;
     height: 100%;
     overflow-y: auto;
-    font-size: 15px;
+    font-size: 16px;
+    line-height: 1.8;
 }
 
 .preview-content h1,
@@ -109,11 +127,21 @@ body {
     color: var(--primary-color);
     margin-top: 1.5em;
     margin-bottom: 0.8em;
+    font-size: 1.4em;
+}
+
+.preview-content h1 {
+    font-size: 1.8em;
+}
+
+.preview-content h2 {
+    font-size: 1.6em;
 }
 
 .preview-content p {
     margin-bottom: 1em;
     line-height: 1.8;
+    font-size: 1.1em;
 }
 
 /* LaTeX公式样式 */
@@ -553,22 +581,24 @@ body {
 /* 设置面板样式 */
 .settings-panel {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.95);
-    background: white;
+    right: 24px;
+    top: 24px;
+    width: 400px;
+    background: var(--surface-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     z-index: 1000;
-    min-width: 500px;
-    opacity: 0;
+    display: none;
+    transform-origin: top right;
     transition: all 0.3s ease;
+    opacity: 0;
+    transform: scale(0.95);
 }
 
 .settings-panel.show {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
 }
 
 .settings-header {
@@ -578,35 +608,65 @@ body {
     margin-bottom: 20px;
 }
 
-.close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
+.settings-header h3 {
+    color: var(--primary-color);
+    font-size: 18px;
 }
 
 .settings-content table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 20px;
 }
 
-.settings-content th,
-.settings-content td {
-    padding: 10px;
-    border: 1px solid #ddd;
-    text-align: left;
+.settings-content table tr {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-content table tr:last-child {
+    border-bottom: none;
+}
+
+.settings-content table td {
+    padding: 12px 0;
+}
+
+.settings-content table td:first-child {
+    width: 40%;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.settings-content input[type="number"] {
+    width: 60px;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    outline: none;
+}
+
+.settings-content input[type="number"]:focus {
+    border-color: var(--primary-color);
+}
+
+.settings-content select {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    outline: none;
+    background: white;
+    cursor: pointer;
+}
+
+.settings-content select:focus {
+    border-color: var(--primary-color);
 }
 
 .settings-buttons {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
-}
-
-.shortcut-input {
-    width: 150px;
-    padding: 5px;
+    gap: 12px;
+    margin-top: 20px;
 }
 
 /* 图标容器样式 */
